@@ -237,11 +237,11 @@ outFile.write( 'VECTORS e_t float\n')
 for i in range( n_points ):
     ec_sel = e_c[i,:]
     el_sel = e_l[i,:]
-    et_sel = np.cross(ec_sel,el_sel) #calculate transmural vector as a cross product eventhough it was calculated before 
+    et_sel = np.cross(ec_sel,el_sel) #calculate transmural vector as a cross product eventhough it was calculated before ?!?!?!
     if np.linalg.norm(et_sel) > 0:
         et_sel = et_sel / np.linalg.norm(et_sel) #normalise transmural local physiological vector for each point
     else:
-        et_sel = [0.0,0.0,1.0] # if the norm is zero than set transmural vector as pointing in z direction
+        et_sel = [0.0,0.0,1.0] # if the norm is zero than set transmural vector as pointing in z direction ?!?!?!
     for jj in range(3):
         outFile.write(str(et_sel[jj])+' ' ) #write all 3 components of vector
     outFile.write( '\n' )
