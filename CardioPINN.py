@@ -6,7 +6,9 @@ Copiright:  Buoso Stefano 2021. ETH Zurich
 '''
 
 import sys,os,shutil
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
+
+tf.disable_v2_behavior()
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -17,8 +19,8 @@ from   vtk.util.numpy_support import vtk_to_numpy
 import DeepCardioFunctions as dc
 
 import matplotlib as mpl
-import matplotlib.pyplot as plt
 
+#devine activation function
 def mySwish(x):
     return x*tf.nn.sigmoid(30*x)
 
@@ -38,6 +40,8 @@ def init_xavierMethod(size):
     out_dim = size[1]        
     xavier_stddev = np.sqrt(2/(in_dim + out_dim))
     return tf.Variable(tf.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
+    #return tf.Variable(tf.random.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
+    
     
 def neural_net(X, weights, biases):
 
@@ -249,7 +253,8 @@ hidden_neurons    = 10 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 250 # number of training epocs
+#epochs           = 250 # number of training epocs
+epochs           = 100 # set a lower number of epochs for testing
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -374,6 +379,7 @@ weights, biases = initialize_NN(layers)
 
 # Define input placeholder
 p_tf = tf.placeholder(tf.float32, shape=[None,n_input_variables]) 
+#p_tf = tf.compat.v1.placeholder(tf.float32, shape=[None,n_input_variables]) 
 
 print('. Building network')
 
@@ -421,7 +427,7 @@ with tf.Session() as sess:
 # with tf.Session() as sess:
 #     saver.restore(sess, out_folder+'/Trained_model.ckpt')
     # Run case 1
-    for csel in range(1,7):
+    for csel in range(1,7): 
 
         if not os.path.exists(out_folder + '/Simulation_results/'):
             os.makedirs(out_folder + '/Simulation_results/')
