@@ -427,7 +427,7 @@ with tf.Session() as sess:
 # with tf.Session() as sess:
 #     saver.restore(sess, out_folder+'/Trained_model.ckpt')
     # Run case 1
-    for csel in range(1,7): 
+    for csel in range(1,2): 
 
         if not os.path.exists(out_folder + '/Simulation_results/'):
             os.makedirs(out_folder + '/Simulation_results/')
