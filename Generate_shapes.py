@@ -41,21 +41,26 @@ import numpy as np
 import os, sys
 from   vtk.util.numpy_support import vtk_to_numpy
 
+
 # Input section
 local_path    = os.getcwd()
 POD_folder    = local_path + '/Shape_model/POD_bases/'
 out_path      = local_path + '/Synthetic_shapes/'
 out_case      = '/Shape1/'
 
+#number of bases used
 n_modes     = 4
 ampl_vector = None
 
 POD_files  = np.sort(next(os.walk(POD_folder))[2])
 LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
+
+#vector of amplitudes used in the model
 ampl_vector       = None
 
 if ampl_vector is not None:
+    #check if given vector of amplitudes has the right length
     assert len(ampl_vector) == n_modes
 
 if not os.path.exists(out_path):
@@ -69,6 +74,7 @@ PHI_c = []
 PHI_t = []
 PHI_l = []
 for m_sel in range(n_modes):
+    #matrix containg the 3D coordinated of the 4804 nodes on the mesh
     Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_points.npy')
 
 #    if m_sel == 0:
@@ -78,6 +84,7 @@ for m_sel in range(n_modes):
 #        PHI    = np.concatenate((PHI,pp_sel),1)
     PHI.append(Phi_matrix)
 
+    #3D vector of strain in physiological circumferential direction for all 4804 nodes
     Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_ec.npy')
     
     # if m_sel == 0:
@@ -87,6 +94,7 @@ for m_sel in range(n_modes):
     #     PHI_c    = np.concatenate((PHI_c,pp_sel),1)
     PHI_c.append(Phi_matrix)
 
+    #3D vector of strain in physiological longitudinal direction for all 4804 nodes
     Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_el.npy')
     
     # if m_sel == 0:
@@ -96,6 +104,7 @@ for m_sel in range(n_modes):
     #     PHI_l    = np.concatenate((PHI_l,pp_sel),1)
     PHI_l.append(Phi_matrix)
 
+    #3D vector of strain in physiological transmural direction for all 4804 nodes
     Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_et.npy')
     
     # if m_sel == 0:
@@ -112,7 +121,7 @@ source_mesh_vtk.ReadAllScalarsOn()
 source_mesh_vtk.Update()
 source_mesh  = source_mesh_vtk.GetOutput()
 n_points  = int(source_mesh.GetNumberOfPoints())
-Coords_0    = vtk_to_numpy(source_mesh.GetPoints().GetData()).copy()
+Coords_0 = vtk_to_numpy(source_mesh.GetPoints().GetData()).copy()
 # Read parametric coordinates and labels
 xc       = vtk_to_numpy(source_mesh.GetPointData().GetArray('x_c'))
 xl       = vtk_to_numpy(source_mesh.GetPointData().GetArray('x_l'))
