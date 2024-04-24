@@ -6,9 +6,8 @@ Copiright:  Buoso Stefano 2021. ETH Zurich
 '''
 
 import sys,os,shutil
-import tensorflow.compat.v1 as tf
-
-tf.disable_v2_behavior()
+import tensorflow.compat.v1 as tf #code was written for the older tensorflow version 1.10
+tf.disable_v2_behavior()  #disable version 2 behavior of tensor flow
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -24,12 +23,15 @@ import matplotlib as mpl
 def mySwish(x):
     return x*tf.nn.sigmoid(30*x)
 
+#initialize using the Xavier Method
 def initialize_NN(layers):  
     weights = []
     biases  = []
     num_layers = len(layers) 
     for l in range(0,num_layers-1):
+        #draw weights from normal distribution 
         W = init_xavierMethod(size=[layers[l], layers[l+1]])
+        #initialize biases with zero
         b = tf.zeros([1,layers[l+1]], dtype=tf.float32)
         weights.append(W)
         biases.append(b)        
@@ -37,10 +39,10 @@ def initialize_NN(layers):
         
 def init_xavierMethod(size):
     in_dim  = size[0]
-    out_dim = size[1]        
+    out_dim = size[1] 
+    #use normal Xavier initialisation       
     xavier_stddev = np.sqrt(2/(in_dim + out_dim))
-    return tf.Variable(tf.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
-    #return tf.Variable(tf.random.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32)
+    return tf.Variable(tf.truncated_normal([in_dim, out_dim], stddev=xavier_stddev), dtype=tf.float32) #default of mean is set to zero
     
     
 def neural_net(X, weights, biases):
@@ -48,9 +50,11 @@ def neural_net(X, weights, biases):
     num_layers = len(weights) + 1
     H =  X
     for l in range(0,num_layers-2):
+        #in every layer except last use swish activation function
         W = weights[l]
         b = biases[l]
         H = mySwish(tf.add(tf.matmul(H,W), b))
+    #dont use activation function in last layer
     W = weights[-1]
     b = biases[-1]
     Y = tf.add(tf.matmul(H,W), b)
@@ -58,31 +62,31 @@ def neural_net(X, weights, biases):
 
 def CardioLoss():
 
-    a_pred2 = amplitude_max*a_pred
+    a_pred2 = amplitude_max*a_pred # a_pred: predicted amplitudes, amplitude_max: amplitudes to scale with ???
     # Compute nodal displacements
     ux = tf.matmul(a_pred2,Phix) 
     uy = tf.matmul(a_pred2,Phiy) 
     uz = tf.matmul(a_pred2,Phiz) 
-    # Compute deformation gradient 
-    DefGradient00 = tf.matmul(a_pred2,dFudx) + 1
+    # Compute deformation gradient
+    DefGradient00 = tf.matmul(a_pred2,dFudx) + 1 #adding the 1 because F= grad(u) + 1
     DefGradient01 = tf.matmul(a_pred2,dFudy)
     DefGradient02 = tf.matmul(a_pred2,dFudz)
 
     DefGradient10 = tf.matmul(a_pred2,dFvdx)
-    DefGradient11 = tf.matmul(a_pred2,dFvdy) + 1 
+    DefGradient11 = tf.matmul(a_pred2,dFvdy) + 1 #adding the 1 because F= grad(u) + 1
     DefGradient12 = tf.matmul(a_pred2,dFvdz)
 
     DefGradient20 = tf.matmul(a_pred2,dFwdx)
     DefGradient21 = tf.matmul(a_pred2,dFwdy)
-    DefGradient22 = tf.matmul(a_pred2,dFwdz) + 1
+    DefGradient22 = tf.matmul(a_pred2,dFwdz) + 1 #adding the 1 because F= grad(u) + 1
 
-    # Compute determinant of deformation gradient
+    # Compute determinant of deformation gradient, which is in the paper defined as J
     I3 = DefGradient00*DefGradient11*DefGradient22 + DefGradient01*DefGradient12*DefGradient20 + DefGradient02*DefGradient10*DefGradient21 \
        - DefGradient20*DefGradient11*DefGradient02 - DefGradient21*DefGradient12*DefGradient00 - DefGradient22*DefGradient10*DefGradient01
 
     J23 = tf.pow(I3,-2./3.)
 
-    # Compute Left Cauchy deformation gradient components
+    # Compute Left Cauchy deformation gradient components, which is J(-2/3) times C in paper 
     C00 = (DefGradient00*DefGradient00 + DefGradient10*DefGradient10 + DefGradient20*DefGradient20)*J23
     C01 = (DefGradient00*DefGradient01 + DefGradient10*DefGradient11 + DefGradient20*DefGradient21)*J23
     C02 = (DefGradient00*DefGradient02 + DefGradient10*DefGradient12 + DefGradient20*DefGradient22)*J23
@@ -98,7 +102,7 @@ def CardioLoss():
     # Compute inverse of deformation gradient
     invF_00 =   DefGradient11*DefGradient22 - DefGradient21*DefGradient12 # I am not dividing by I3 since I would
     invF_10 = - DefGradient10*DefGradient22 + DefGradient20*DefGradient12 # neet to multiply by it in the calculation
-    invF_20 =   DefGradient10*DefGradient21 - DefGradient20*DefGradient11 # fof the deformed area
+    invF_20 =   DefGradient10*DefGradient21 - DefGradient20*DefGradient11 # fof the deformed area for components of E_sum_u
 
     invF_01 = - DefGradient01*DefGradient22 + DefGradient21*DefGradient02
     invF_11 =   DefGradient00*DefGradient22 - DefGradient20*DefGradient02
@@ -108,7 +112,7 @@ def CardioLoss():
     invF_12 = - DefGradient00*DefGradient12 + DefGradient10*DefGradient02
     invF_22 =   DefGradient00*DefGradient11 - DefGradient10*DefGradient01
 
-    # Compute invariants of Left Cauchy deformation gradient
+    # Compute invariants of Left Cauchy deformation gradient, constants in equation 2 in paper 
     I1 = C00 + C11 + C22
 
     I4f  = fx*(C00*fx+C01*fy+C02*fz) + fy*(C10*fx+C11*fy+C12*fz) + fz*(C20*fx+C21*fy+C22*fz)
@@ -117,25 +121,25 @@ def CardioLoss():
 
     I8fs = sx*(C00*fx+C01*fy+C02*fz) + sy*(C10*fx+C11*fy+C12*fz) + sz*(C20*fx+C21*fy+C22*fz)
 
-    # Compute passive stress contribution
+    # Compute passive stress contribution, W_p equation 1 in paper, om 4th line should it be i3 to pwer of 2 ??????????
     Phi_passive       =   HogdenHol.a_iso/2./HogdenHol.b_iso*( tf.exp( HogdenHol.b_iso*       (I1-3.)   ) - 1.) \
                       +   HogdenHol.a_f/2./HogdenHol.b_f    *( tf.exp( HogdenHol.b_f  *tf.pow(I4f-1.,2.)) - 1.) \
                       +   HogdenHol.a_s/2./HogdenHol.b_s    *( tf.exp( HogdenHol.b_s  *tf.pow(I4s-1.,2.)) - 1.) \
                       +   HogdenHol.k/2.*tf.pow(I3-1.,2) \
                       +   HogdenHol.a_fs/2./HogdenHol.b_fs*(tf.exp(HogdenHol.b_fs*tf.pow(I8fs,2.0)) -1.) 
 
-    # Compute active stress contribution
-    Phi_active     = stress_normalization/2.0/I3 *( (I4f - 1.0) + 0.3*( (I4s -1.0) + (I4n - 1.0) ) )
+    # Compute active stress contribution,in the equqtion set mu = 0.3
+    Phi_active     = stress_normalization/2.0/I3 *( (I4f - 1.0) + 0.3*( (I4s -1.0) + (I4n - 1.0) ) ) # stress normalization: scaling value for actuation stresses [Pa]
 
-    # Compute total stresses in myocardium
+    # Compute total stresses in myocardium, integration apprx as multiplying times volume
     I_sum          = stiff_scale*Phi_passive*Nodal_volume \
-                   + p_tf[0][1]*Phi_active*Nodal_volume
+                   + p_tf[0][1]*Phi_active*Nodal_volume  #p_tf[0][1] is the actuation stress, stiff scale : scaling value of shear moduli of the material model [-]
 
     # Compute contribution of external pressure loading on endocardium
-    newNodal_areax = invF_00*Nodal_areax + invF_10*Nodal_areay + invF_20*Nodal_areaz
+    newNodal_areax = invF_00*Nodal_areax + invF_10*Nodal_areay + invF_20*Nodal_areaz  #F inverse times normal on endocardium
     newNodal_areay = invF_01*Nodal_areax + invF_11*Nodal_areay + invF_21*Nodal_areaz
     newNodal_areaz = invF_02*Nodal_areax + invF_12*Nodal_areay + invF_22*Nodal_areaz
-    E_sum_u       = p_tf[0][0]*pressure_normalization*133.32*(ux*newNodal_areax + uy*newNodal_areay +uz*newNodal_areaz)  
+    E_sum_u       = p_tf[0][0]*pressure_normalization*133.32*(ux*newNodal_areax + uy*newNodal_areay +uz*newNodal_areaz)   #133.32 area of the faces ??
 
     # Compute total cost function
     CardioEnergy  = tf.reduce_sum(I_sum + E_sum_u)
@@ -145,18 +149,22 @@ def CardioLoss():
 def Isovolumetric_PressureUpdate(volume_constraint,active_s):
     ''' Iterative scheme for the calculation of the pressure value to preserve the volumetric constrain
     during the isovolumetric phase
+    Iteratively determine the value p_0 for the given active stress active_s and while preserving the volume
     '''
 
-    dp = 10/133.32#Pa
+    dp = 10/133.32#Pa   
     iterations = 0
     err = 1.
-    p_0 = pressure_LV[i-1]
-
+    p_0 = pressure_LV[i-1]  #pressure due to bloof pool
+    #iterativelu update the pressure until the volume has deviated too much or max iterations are reached
     while err > 0.001 and iterations < 10:
         iterations += 1
+        #using NN calculate a_prep for the current pressure and activation stress and scale a_prep to get appropriate predicted amplitudes
         a_0 = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[p_0/pressure_normalization,active_s/stress_normalization]]}))
+        #using NN calculate a_prep for the updated pressure and current activation stress and scale a_prep to get appropriate predicted amplitudes
         a_1 = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[(p_0+dp)/pressure_normalization,active_s/stress_normalization]]}))
 
+        #calculate volumne for both calculated sets of amplitudes
         V_lv_0 = Compute_Volume(a_0)
         V_lv_1 = Compute_Volume(a_1)
 
@@ -164,33 +172,35 @@ def Isovolumetric_PressureUpdate(volume_constraint,active_s):
         
         local_compliance = (V_lv_1-V_lv_0)/dp
         deltap = - (v_error)/local_compliance
-        err = abs(deltap)
-        p_0 += deltap
+        err = abs(deltap)   #calculate change in volume due to change in pressure 
+        p_0 += deltap   #update pressure
 
     return p_0
 
 def Compute_Volume(a_sel):
-    ''' Compute left ventricular blood pool volume'''
 
-    disp_x = a_sel[0,:].dot(Phix_s.T)
+    ''' Compute left ventricular blood pool volume'''
+    #calculate displacements in all directions
+    disp_x = a_sel[0,:].dot(Phix_s.T) 
     disp_y = a_sel[0,:].dot(Phiy_s.T)
     disp_z = a_sel[0,:].dot(Phiz_s.T)
-
-    NewCoords = np.concatenate((Coords[:,0].reshape(-1,1)+disp_x.reshape(-1,1),Coords[:,1].reshape(-1,1)+disp_y.reshape(-1,1),Coords[:,2].reshape(-1,1)+disp_z.reshape(-1,1)),1)
+    #update the coordinates with the calculated displacement
+    NewCoords = np.concatenate((Coords[:,0].reshape(-1,1)+disp_x.reshape(-1,1),Coords[:,1].reshape(-1,1)+disp_y.reshape(-1,1),Coords[:,2].reshape(-1,1)+disp_z.reshape(-1,1)),1) #concatenate vectors horizontally
     
     volume_blood_ML = 0
-
+    #for all faces
     for j in range(len(Faces_Endo)):
-        sel_el = Faces_Endo[j]
-        oa = np.array(NewCoords[sel_el[0],:])
-        ob = np.array(NewCoords[sel_el[1],:])
-        oc = np.array(NewCoords[sel_el[2],:])
-        volume_blood_ML += 1.0/6.0*abs(np.dot(np.cross(oa,ob),oc))*1e6
+        sel_el = Faces_Endo[j] #node at that face 
+        oa = np.array(NewCoords[sel_el[0],:]) #x,y,z coordinates of the node
+        ob = np.array(NewCoords[sel_el[1],:]) #x,y,z coordinates of the node
+        oc = np.array(NewCoords[sel_el[2],:]) #x,y,z coordinates of the node
+        volume_blood_ML += 1.0/6.0*abs(np.dot(np.cross(oa,ob),oc))*1e6  #add together individual volumn parts
 
     return volume_blood_ML
 
 def PressureUpdateSystole(active_s):
-    ''' Iterative procedure to couple sistolic function with systemic circulation'''
+    ''' Iterative procedure to couple sistolic function with systemic circulation
+    Calculate pressure in systolic phase using two elemnt windkessel model'''
 
     dp = 10. # Pa
     DT = (t[i] - t[i-1])/1e3
@@ -200,18 +210,19 @@ def PressureUpdateSystole(active_s):
 
     while err > 0.001 and iterations < 10:
         iterations += 1
+        #using NN calculate a_prep for the current pressure and ypdated pressure and activation stress and scale a_prep to get appropriate predicted amplitudes
         a_0 = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[p_0/pressure_normalization,active_s/stress_normalization]]}))
         a_1 = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[(p_0+dp/133.32)/pressure_normalization,active_s/stress_normalization]]}))
         V_lv_0 = Compute_Volume(a_0)
         V_lv_1 = Compute_Volume(a_1)
 
-        LV_compliance = (V_lv_1-V_lv_0)/dp
+        LV_compliance = (V_lv_1-V_lv_0)/dp # change in volumn compared to change in pressure
 
-        residual_windkessel = -(volume[i-1]-V_lv_0)+ Windkessel_C *(p_0-pressure_LV[i-1])*133.32 + DT*p_0/Windkessel_R*133.32
-        first_derivative    = LV_compliance + Windkessel_C  + DT/Windkessel_R
+        residual_windkessel = -(volume[i-1]-V_lv_0)+ Windkessel_C *(p_0-pressure_LV[i-1])*133.32 + DT*p_0/Windkessel_R*133.32 #for the windkesselmodel this should be zero
+        first_derivative    = LV_compliance + Windkessel_C  + DT/Windkessel_R #derivative of residual
 
         # NR iteration
-        delta_p = - residual_windkessel/first_derivative/133.32
+        delta_p = - residual_windkessel/first_derivative/133.32 #iteratively change the pressure until the change in pressure is too large
 
         err = abs(delta_p)
         p_0 += delta_p
@@ -253,8 +264,7 @@ hidden_neurons    = 10 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-#epochs           = 250 # number of training epocs
-epochs           = 100 # set a lower number of epochs for testing
+epochs           = 250 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -290,6 +300,7 @@ PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_m
 # Define normalization values for amplitudes of the bases
 amplitude_max = np.zeros((1,n_modesU))
 for i in range(n_modesU):
+    #for each mode save the maximal amplitude in the range
     if abs(amplitude_range[i,0])> abs(amplitude_range[i,1]):
         amplitude_max[0,i] = amplitude_range[i,0]
     else:
@@ -336,7 +347,7 @@ sx = tf.constant(sx_s,dtype=np.float32)
 sy = tf.constant(sy_s,dtype=np.float32)
 sz = tf.constant(sz_s,dtype=np.float32)
 
-nx_s = fy_s*sz_s-fz_s*sy_s
+nx_s = fy_s*sz_s-fz_s*sy_s 
 ny_s = fz_s*sx_s-fx_s*sz_s
 nz_s = fx_s*sy_s-fy_s*sx_s
 
@@ -378,8 +389,7 @@ layers.append(n_modesU)
 weights, biases = initialize_NN(layers)
 
 # Define input placeholder
-p_tf = tf.placeholder(tf.float32, shape=[None,n_input_variables]) 
-#p_tf = tf.compat.v1.placeholder(tf.float32, shape=[None,n_input_variables]) 
+p_tf = tf.placeholder(tf.float32, shape=[None,n_input_variables]) #variable to which data is assigned later
 
 print('. Building network')
 
@@ -406,7 +416,7 @@ t       = np.linspace(0,diastole_length+systole_length,n_steps)
 offset_time_ = diastole_length + systole_length/2.0
 
 loss_vector = [0]*epochs
-with tf.Session() as sess:
+with tf.Session() as sess:  #session holds values of intermediate results and variables
     # initialise the variables
     sess.run(init_op)
     for epoch in range(epochs):
@@ -427,7 +437,7 @@ with tf.Session() as sess:
 # with tf.Session() as sess:
 #     saver.restore(sess, out_folder+'/Trained_model.ckpt')
     # Run case 1
-    for csel in range(1,2): 
+    for csel in range(1,7): 
 
         if not os.path.exists(out_folder + '/Simulation_results/'):
             os.makedirs(out_folder + '/Simulation_results/')
