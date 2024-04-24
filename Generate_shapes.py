@@ -57,7 +57,7 @@ LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
 
 #vector of amplitudes used in the model
-ampl_vector       = None
+ampl_vector       = [3,1,1,-0.5]
 
 if ampl_vector is not None:
     #check if given vector of amplitudes has the right length
