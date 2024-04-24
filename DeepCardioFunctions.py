@@ -24,6 +24,7 @@ def LoadModelAnatomy(vtk_mean):
     import vtk
     from vtk.util.numpy_support import vtk_to_numpy
 
+    #read in vtk structure from input file
     reader = vtk.vtkUnstructuredGridReader()
     reader.SetFileName(vtk_mean)
     reader.ReadAllScalarsOn()
@@ -31,15 +32,15 @@ def LoadModelAnatomy(vtk_mean):
     reader.Update()
     data = reader.GetOutput()
 
-    n_points = data.GetNumberOfPoints()
-    n_el     = data.GetNumberOfCells()
-    Coords   =  vtk_to_numpy(data.GetPoints().GetData())
-    Els      = np.zeros((n_el,4),dtype=int)
+    n_points = data.GetNumberOfPoints()   #number of points
+    n_el     = data.GetNumberOfCells()    #number of cells
+    Coords   =  vtk_to_numpy(data.GetPoints().GetData())   #coordinates of each point
+    Els      = np.zeros((n_el,4),dtype=int)  #connections
     for i in range(n_el):
         cell_type = data.GetCellType(i)
-        n_nodes_el   = data.GetCell(i).GetPointIds().GetNumberOfIds()
+        n_nodes_el   = data.GetCell(i).GetPointIds().GetNumberOfIds()    #number of vertices for each cell
         for n_sel in range(n_nodes_el):
-            Els[i,n_sel] = int(data.GetCell(i).GetPointId(n_sel))
+            Els[i,n_sel] = int(data.GetCell(i).GetPointId(n_sel)) # save list of vertices contained in cell
 
     labels  = vtk_to_numpy(data.GetPointData().GetArray('labels'))
     x_c  = vtk_to_numpy(data.GetPointData().GetArray('x_c'))
@@ -59,8 +60,8 @@ def LoadModelAnatomy(vtk_mean):
     Faces_Endo = []
     start_faces = True
     for kk in range(n_el):
-        el_points = Els[kk,:]
-        for jj in range(4):
+        el_points = Els[kk,:] #vertices found in kk cell, there are always 4 vertices in each cell
+        for jj in range(4): 
             if all(labels[int(v)] == 2 for v in el_points[faces_connectivity[jj]]):
                 if start_faces:
                     Faces_Endo  = np.array(el_points[faces_connectivity[jj]],dtype=int).reshape(1,-1)
@@ -104,14 +105,18 @@ def GradientOperator_AvgBased(Coords,Els,Node_par_coords):
 
     W = np.zeros((n_points,n_el))
 
-    for sel_el in range(n_el):
+    for sel_el in range(n_el): 
+        #for each cell
         AA = np.zeros((3,3))
-        AA[0,0] = Coords[Els[sel_el,1],0] - Coords[Els[sel_el,0],0]
+        #distance first and second vertix
+        AA[0,0] = Coords[Els[sel_el,1],0] - Coords[Els[sel_el,0],0] 
         AA[0,1] = Coords[Els[sel_el,1],1] - Coords[Els[sel_el,0],1]
         AA[0,2] = Coords[Els[sel_el,1],2] - Coords[Els[sel_el,0],2]
+        #distance first and third vertix
         AA[1,0] = Coords[Els[sel_el,2],0] - Coords[Els[sel_el,0],0]
         AA[1,1] = Coords[Els[sel_el,2],1] - Coords[Els[sel_el,0],1]
         AA[1,2] = Coords[Els[sel_el,2],2] - Coords[Els[sel_el,0],2]
+        #distance first and fourth vertix
         AA[2,0] = Coords[Els[sel_el,3],0] - Coords[Els[sel_el,0],0]
         AA[2,1] = Coords[Els[sel_el,3],1] - Coords[Els[sel_el,0],1]
         AA[2,2] = Coords[Els[sel_el,3],2] - Coords[Els[sel_el,0],2]
@@ -119,7 +124,7 @@ def GradientOperator_AvgBased(Coords,Els,Node_par_coords):
         invA = np.linalg.inv(AA)
 
         dFcdx[sel_el,Els[sel_el,0]] = - np.sum(invA[0,:])
-        dFcdx[sel_el,Els[sel_el,1]] = invA[0,0]
+        dFcdx[sel_el,Els[sel_el,1]] = invA[0,0] #for x coordinate with respect to first neighbor
         dFcdx[sel_el,Els[sel_el,2]] = invA[0,1]
         dFcdx[sel_el,Els[sel_el,3]] = invA[0,2]
 
@@ -138,15 +143,15 @@ def GradientOperator_AvgBased(Coords,Els,Node_par_coords):
 
     # Volume weighted projection
     for i in range(n_el):
-        Vol_el[i] = 1.0/6.0*abs((Coords[Els[i,3],:]-Coords[Els[i,0],:]).dot( np.cross(Coords[Els[i,2],:]-Coords[Els[i,0],:],Coords[Els[i,1],:]-Coords[Els[i,0],:])))
-        for n_sel in Els[i]:
+        Vol_el[i] = 1.0/6.0*abs((Coords[Els[i,3],:]-Coords[Els[i,0],:]).dot( np.cross(Coords[Els[i,2],:]-Coords[Els[i,0],:],Coords[Els[i,1],:]-Coords[Els[i,0],:]))) #volumn spanned by the cell weighted
+        for n_sel in Els[i]: #for ech connected vertex add a fourth of the volumn to the nodal volumn
             Nodal_volume[n_sel] += Vol_el[i]/4.0
 
     for i in range(n_points):
-        Els_per_node = np.where(Els == i)[0]
+        Els_per_node = np.where(Els == i)[0] #to which vertices this point is connected
 
         for sel_el in Els_per_node: 
-            dFdx[i,:] += dFcdx[sel_el,:].copy()*Vol_el[sel_el]/4.0/Nodal_volume[i]
+            dFdx[i,:] += dFcdx[sel_el,:].copy()*Vol_el[sel_el]/4.0/Nodal_volume[i] #scale the vector by volume of element and volume associated with the node
             dFdy[i,:] += dFcdy[sel_el,:].copy()*Vol_el[sel_el]/4.0/Nodal_volume[i]
             dFdz[i,:] += dFcdz[sel_el,:].copy()*Vol_el[sel_el]/4.0/Nodal_volume[i]
 
@@ -159,15 +164,17 @@ def LoadPODmodes_FunctionalModel(POD_folder,n_modes):
 
     snapshots      = np.sort(next(os.walk(POD_folder))[2])
     n_snapshots    = len(snapshots)-1
-    n_modes        = np.min([n_modes,n_snapshots])
+    n_modes        = np.min([n_modes,n_snapshots]) #set the number of functional basis used
 
     for m_sel in range(n_modes):
+        
         Phi_matrix = np.load(POD_folder+'/Phi'+str(m_sel)+'_points.npy')
+        #for each mode concatenate the x,y,z coordinates of all points vertically
         if m_sel == 0:
             PHI = np.concatenate((Phi_matrix[:,0].reshape(-1,1),Phi_matrix[:,1].reshape(-1,1),Phi_matrix[:,2].reshape(-1,1)),0)
         else:
             pp_sel = np.concatenate((Phi_matrix[:,0].reshape(-1,1),Phi_matrix[:,1].reshape(-1,1),Phi_matrix[:,2].reshape(-1,1)),0)
-            PHI    = np.concatenate((PHI,pp_sel),1)
+            PHI    = np.concatenate((PHI,pp_sel),1) #concatenate the coordinates for the differnet modes horizontal
 
     if os.path.isfile(POD_folder+'/Amplitudes_min_max.txt'):
         amplitudes = np.loadtxt(POD_folder+'/Amplitudes_min_max.txt')
@@ -192,7 +199,8 @@ def GenerateFibers(e_t_vector,e_l_vector,e_c_vector,Node_par_coords,FiberData):
     sy =  np.zeros((n_points,1))
     sz =  np.zeros((n_points,1))
 
-    # Normalize fibers
+    # Normalize fibers, one is fibre directrion, one sheet direction and one perpendicular
+    #calculate for each point on mesh
     for i in range(n_points):
         x_c = Node_par_coords[i,1]
         x_l = Node_par_coords[i,2]
@@ -201,22 +209,22 @@ def GenerateFibers(e_t_vector,e_l_vector,e_c_vector,Node_par_coords,FiberData):
         e_l = e_l_vector[i,:]
         e_t = e_t_vector[i,:]
 
-        e_c = e_c/np.linalg.norm(e_c)
+        e_c = e_c/np.linalg.norm(e_c) 
         e_t = np.cross(e_c,e_l)
-        e_t = e_t/np.linalg.norm(e_t)
+        e_t = e_t/np.linalg.norm(e_t)  
         e_l = e_l - np.dot(e_c,e_l)*e_c
         e_l = e_l/np.linalg.norm(e_l)
 
-        alfa_angle  = np.pi/180.0*(FiberData.epi_fiber_angle*x_t + FiberData.endo_fiber_angle*(1.0 - x_t))
+        alfa_angle  = np.pi/180.0*(FiberData.epi_fiber_angle*x_t + FiberData.endo_fiber_angle*(1.0 - x_t)) #angle for fibre orientation depends on transmural coordinate
         gamma_angle = FiberData.gamma_angle*np.pi/180.0
 
-        vf_dir   = np.cos(alfa_angle)*e_c + np.sin(alfa_angle)*e_l
+        vf_dir   = np.cos(alfa_angle)*e_c + np.sin(alfa_angle)*e_l #direction of fibre based on local direction
         vf_dir   = vf_dir/np.linalg.norm(vf_dir)
-        vs0_dir  = - np.cos(gamma_angle)*e_t + np.sin(gamma_angle)*e_l
+        vs0_dir  = - np.cos(gamma_angle)*e_t + np.sin(gamma_angle)*e_l #direction of sheet based on local direction
         if np.linalg.norm(vs0_dir) > 0:
             vs_dir  = vs0_dir/np.linalg.norm(vs0_dir)
         else:
-            vs_dir = vs_0_dir
+            vs_dir = vs0_dir
         vs_dir = vs_dir - np.dot(vf_dir,vs_dir)*vf_dir
         vs_dir = vs_dir / np.linalg.norm(vs_dir)
 
@@ -238,14 +246,14 @@ def WriteFibers2VTK(Coords,Els,fx,fy,fz,sx,sy,sz,out_file):
     outFile.write('ASCII\n')
     outFile.write('DATASET UNSTRUCTURED_GRID \n')
     outFile.write('POINTS '+str(Coords.shape[0])+' float\n')
-    for j in range(Coords.shape[0]):
+    for j in range(Coords.shape[0]): #write coordinates for each point
         outFile.write(str(Coords[j,0])+' ')
         outFile.write(str(Coords[j,1])+' ')
         outFile.write(str(Coords[j,2])+' ')
         outFile.write('\n')
     outFile.write( 'CELLS ' + str( Els.shape[0] ) + ' ' + str( (Els.shape[0]) * 5 ) )
     outFile.write('\n')
-    for k in range( Els.shape[0] ):
+    for k in range( Els.shape[0] ): #write connections for each cell
         outFile.write( '4 ' )
         for j in range( 4 ):
             outFile.write( str( Els[k,j]) + ' ' )
@@ -257,9 +265,9 @@ def WriteFibers2VTK(Coords,Els,fx,fy,fz,sx,sy,sz,out_file):
     outFile.write('\nPOINT_DATA '+str(Coords.shape[0])+'\n')
     outFile.write('VECTORS f float \n')
     for k in range(Coords.shape[0]):
-        outFile.write(str(fx[k])+' '+str(fy[k])+' '+str(fz[k])+' '+'\n')
+        outFile.write(str(fx[k])+' '+str(fy[k])+' '+str(fz[k])+' '+'\n')  #write fibre direction for each point
     outFile.write('VECTORS s float \n')
     for k in range(Coords.shape[0]):
-        outFile.write(str(sx[k])+' '+str(sy[k])+' '+str(sz[k])+' '+'\n')
+        outFile.write(str(sx[k])+' '+str(sy[k])+' '+str(sz[k])+' '+'\n') #write sheet direction for each point 
     outFile.close()
     return 0
