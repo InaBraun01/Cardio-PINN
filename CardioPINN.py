@@ -188,9 +188,8 @@ def Compute_Volume(a_sel):
     NewCoords = np.concatenate((Coords[:,0].reshape(-1,1)+disp_x.reshape(-1,1),Coords[:,1].reshape(-1,1)+disp_y.reshape(-1,1),Coords[:,2].reshape(-1,1)+disp_z.reshape(-1,1)),1) #concatenate vectors horizontally
     
     volume_blood_ML = 0
-    #for all faces
-    for j in range(len(Faces_Endo)):
-        sel_el = Faces_Endo[j] #node at that face 
+    for j in range(len(Faces_Endo)): #for each face of the tetrahedral cells
+        sel_el = Faces_Endo[j] #for all nodes on the face
         oa = np.array(NewCoords[sel_el[0],:]) #x,y,z coordinates of the node
         ob = np.array(NewCoords[sel_el[1],:]) #x,y,z coordinates of the node
         oc = np.array(NewCoords[sel_el[2],:]) #x,y,z coordinates of the node
@@ -382,13 +381,13 @@ dFwdy = tf.constant(dFwdy_s.T,dtype=np.float32)
 dFwdz = tf.constant(dFwdz_s.T,dtype=np.float32)
 
 # Define network
-layers = [n_input_variables]
+layers = [n_input_variables] #collect size of all layers of NN
 for hs in range(hidden_layers):
      layers.append(hidden_neurons)
 layers.append(n_modesU) 
-weights, biases = initialize_NN(layers)
+weights, biases = initialize_NN(layers)  #initialize weights for all layers of NN
 
-# Define input placeholder
+# Define input placeholder for inpu parameters (pressure,Ta)
 p_tf = tf.placeholder(tf.float32, shape=[None,n_input_variables]) #variable to which data is assigned later
 
 print('. Building network')
@@ -396,13 +395,13 @@ print('. Building network')
 # Generate (p_endo,T_a) tuples for training
 p_range           = np.linspace(0.0,1.0,d_param)
 act_range         = np.linspace(0.0,1.0,d_param)
-param_grid = []
+param_grid = [] #create grid of all combinations of parameters to test
 for ip in range(d_param): # allowed pressure values
     for ia in range(d_param):
         param_grid.append([p_range[ip],act_range[ia]])
 param_grid = np.array(param_grid)
 
-a_pred = neural_net(p_tf, weights, biases)
+a_pred = neural_net(p_tf, weights, biases) #calculate amplitudes based on the input parameters
 
 loss      = CardioLoss()
 optimiser = tf.train.AdamOptimizer(learning_rate=learn_rate).minimize(loss)
@@ -410,25 +409,25 @@ optimiser = tf.train.AdamOptimizer(learning_rate=learn_rate).minimize(loss)
 init_op = tf.global_variables_initializer()
 saver   = tf.train.Saver()
 
-n_steps = int((systole_length + diastole_length)/dt_)
-t       = np.linspace(0,diastole_length+systole_length,n_steps)
+n_steps = int((systole_length + diastole_length)/dt_) #number of time steps in simulation
+t       = np.linspace(0,diastole_length+systole_length,n_steps) #list of time steps for which simulation is done
 
 offset_time_ = diastole_length + systole_length/2.0
 
 loss_vector = [0]*epochs
 with tf.Session() as sess:  #session holds values of intermediate results and variables
     # initialise the variables
-    sess.run(init_op)
+    sess.run(init_op)  #initializes variables before use not used in tensorflow v2
     for epoch in range(epochs):
         avg_cost = 0
-        for i in range(param_grid.shape[0]):
-            _,c = sess.run([optimiser, loss],feed_dict={p_tf:[param_grid[i,:]]})#
-            avg_cost += c
+        for i in range(param_grid.shape[0]): 
+            _,c = sess.run([optimiser, loss],feed_dict={p_tf:[param_grid[i,:]]}) #run optimiser and loss for all combinations of input parameters
+            avg_cost += c    #sum up the loss for all different inputs -> not really averaged
         print("Epoch:", (epoch + 1), "cost =", str(avg_cost))
         loss_vector[epoch] = avg_cost
-    plt.plot(loss_vector[5:epoch])
+    plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
     plt.tight_layout()
-    plt.savefig(out_folder +'/Loss_function.png',dpi=400)
+    plt.savefig(out_folder +'/Loss_function.png',dpi=400) # save the model
     plt.close()
 
     save_path = saver.save(sess, out_folder+'/Trained_model.ckpt')
