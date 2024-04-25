@@ -56,12 +56,12 @@ def LoadModelAnatomy(vtk_mean):
     Node_par_coords[:,2] = x_l
     Node_par_coords[:,3] = x_t
 
-    faces_connectivity = np.array([[0,2,1],[0,1,3],[1,2,3],[2,0,3]])
-    Faces_Endo = []
+    faces_connectivity = np.array([[0,2,1],[0,1,3],[1,2,3],[2,0,3]])  #vertices connected on the 4 faces of the tetrahedron
+    Faces_Endo = []  #list of points that make up tetrahedral cell with the one specific vertex
     start_faces = True
-    for kk in range(n_el):
+    for kk in range(n_el): #for each cell 
         el_points = Els[kk,:] #vertices found in kk cell, there are always 4 vertices in each cell
-        for jj in range(4): 
+        for jj in range(4): #for all vertices making up the cell, save the connection of vertices on the faces
             if all(labels[int(v)] == 2 for v in el_points[faces_connectivity[jj]]):
                 if start_faces:
                     Faces_Endo  = np.array(el_points[faces_connectivity[jj]],dtype=int).reshape(1,-1)
@@ -76,10 +76,10 @@ def GenerateNodalAreas(Faces_Endo,Coords):
     import numpy as np
     
     Nodal_area  = np.zeros((Coords.shape[0],3))
-    for jj in range(Faces_Endo.shape[0]):
-        area_vector = 0.5*(np.cross(Coords[Faces_Endo[jj][1],:]-Coords[Faces_Endo[jj][0],:],Coords[Faces_Endo[jj][2],:]-Coords[Faces_Endo[jj][0],:]))
+    for jj in range(Faces_Endo.shape[0]): #for each face
+        area_vector = 0.5*(np.cross(Coords[Faces_Endo[jj][1],:]-Coords[Faces_Endo[jj][0],:],Coords[Faces_Endo[jj][2],:]-Coords[Faces_Endo[jj][0],:])) # carculate the area of that face
         for ll in range(3):
-            Nodal_area[Faces_Endo[jj][ll],:] += area_vector/3.0
+            Nodal_area[Faces_Endo[jj][ll],:] += area_vector/3.0 #for each node on the face save a third of the face area
     return Nodal_area
 
 def GradientOperator_AvgBased(Coords,Els,Node_par_coords):
