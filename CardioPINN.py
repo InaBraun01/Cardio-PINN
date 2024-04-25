@@ -62,7 +62,7 @@ def neural_net(X, weights, biases):
 
 def CardioLoss():
 
-    a_pred2 = amplitude_max*a_pred # a_pred: predicted amplitudes, amplitude_max: amplitudes to scale with ???
+    a_pred2 = amplitude_max*a_pred # a_pred: predicted amplitudes, amplitude_max: amplitudes to scale with 
     # Compute nodal displacements
     ux = tf.matmul(a_pred2,Phix) 
     uy = tf.matmul(a_pred2,Phiy) 
@@ -427,41 +427,41 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
         loss_vector[epoch] = avg_cost
     plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
     plt.tight_layout()
-    plt.savefig(out_folder +'/Loss_function.png',dpi=400) # save the model
+    plt.savefig(out_folder +'/Loss_function.png',dpi=400) # save the plot
     plt.close()
 
-    save_path = saver.save(sess, out_folder+'/Trained_model.ckpt')
+    save_path = saver.save(sess, out_folder+'/Trained_model.ckpt') #save the session of the NN
     print("Model saved in path: %s" % save_path)
 
 # with tf.Session() as sess:
 #     saver.restore(sess, out_folder+'/Trained_model.ckpt')
     # Run case 1
-    for csel in range(1,7): 
+    for csel in range(1,2):  #I really don't understand why the run through this loop 7 times. I think this loop can be getten rid off
 
         if not os.path.exists(out_folder + '/Simulation_results/'):
             os.makedirs(out_folder + '/Simulation_results/')
 
-        active_stress = [0]*n_steps
+        active_stress = [0]*n_steps #action stress in diastole
 
         for i in range(n_steps):
-            if t[i]>diastole_length and t[i]<=diastole_length + systole_length:
-                active_stress[i] = max_act*(1.0-(2*(t[i]-offset_time_)/systole_length)**2)
+            if t[i]>diastole_length and t[i]<=diastole_length + systole_length:   #during systole
+                active_stress[i] = max_act*(1.0-(2*(t[i]-offset_time_)/systole_length)**2) #behaves like a parabolar opened downward 
 
         active_stress = np.array(active_stress)
         ejection       = True
 
         pressure_LV = [0]*n_steps
         volume      = [0]*n_steps
-        systolic_phase = False
+        systolic_phase = False  #start simulation in diastole
 
         ED_id = int(diastole_length/dt_)-1
-        a_out = np.zeros((n_steps,n_modesU))
+        a_out = np.zeros((n_steps,n_modesU)) #matrix of calculated amplitudes for each the step in the simulation
         syst_steps = 0
 
-        for i in range(0,n_steps):
+        for i in range(0,n_steps): #go through all steps in the simulation
             print('Solving time-step: ',str(i) ,' of ',str(n_steps))
 
-            if pressure_LV[i-1]>diastolic_aortic_pressure:
+            if pressure_LV[i-1]>diastolic_aortic_pressure: #initiate systolic phase
                 systolic_phase = True
 
             if not systolic_phase:
@@ -469,39 +469,39 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
                     print('Diastolig filling phase')
                     max_volume = volume[i-1]
                     if i ==0 :
-                        pressure_LV[i] = 0.0
+                        pressure_LV[i] = 0.0 #start simulation at 0 pressure
                     else:
-                        pressure_LV[i] = pressure_LV[i-1] + end_diastolic_LV_pressure/diastole_length*(t[i]-t[i-1])
+                        pressure_LV[i] = pressure_LV[i-1] + end_diastolic_LV_pressure/diastole_length*(t[i]-t[i-1]) #increase the pressure linearly in diastolic filling
                 else :
                     print('.... Isovolumetric contraction')
-                    pressure_LV[i] = Isovolumetric_PressureUpdate(max_volume,active_stress[i])
-            else:
-                if ejection:
+                    pressure_LV[i] = Isovolumetric_PressureUpdate(max_volume,active_stress[i]) #update the pressure while keeping the volumne constant
+            else: # when in systole
+                if ejection: #when in systolic ejection
                     print('.... Systole')
                     syst_steps+=1
-                    deltaV = volume[i-1] - volume[i-2]
-                    pressure_LV[i] = PressureUpdateSystole(active_stress[i])
-                    if syst_steps>3:
-                        if deltaV > 0 or volume[i-1]<=volume[0]+2.:
-                            ejection = False
+                    deltaV = volume[i-1] - volume[i-2] 
+                    pressure_LV[i] = PressureUpdateSystole(active_stress[i]) #update pressure accordingly
+                    if syst_steps>3: #after three steps in systole
+                        if deltaV > 0 or volume[i-1]<=volume[0]+2.: #if the volumne is increasing or if the volumne is smaller than the volumne at the beginning of diastole
+                            ejection = False #change to isovolumetric relaxation 
                 else:
                     print('.... Isovolumetric relaxation')
-                    pressure_LV[i] = Isovolumetric_PressureUpdate(volume[0],active_stress[i])
+                    pressure_LV[i] = Isovolumetric_PressureUpdate(volume[0],active_stress[i])  #update the pressure while keeping the volumne constant
 
-            a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[pressure_LV[i]/pressure_normalization,active_stress[i]/stress_normalization]]}))
-            a_out[i,:] = a_new
-            volume[i] = Compute_Volume(a_new)
+            a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[pressure_LV[i]/pressure_normalization,active_stress[i]/stress_normalization]]})) #predicte using NN for given pressure and active stress
+            a_out[i,:] = a_new #save calculated amplitudes for this simulation step
+            volume[i] = Compute_Volume(a_new) #compute the volume of the new shape
 
             print('.... Pressure LV: '+ str(pressure_LV[i]) + ' mmHg, V: '+ str(volume[i]) + ' mL, Actuation strain: '+str(active_stress[i]/1e3)+' kPa')
 
-        plt.plot(volume,pressure_LV)
+        plt.plot(volume,pressure_LV) #plot ans save LV loop
         plt.savefig(out_folder + '/pV.png')
         plt.close()
 
         ccdumb = 0
         for i in range(0,n_steps,2):
-
-            disp_x = a_out[i,:].dot(Phix_s.T)
+            #for i simulation step calculate the displacement vector and new coordinates
+            disp_x = a_out[i,:].dot(Phix_s.T) #Phix_s contribution of FM in x direction
             disp_y = a_out[i,:].dot(Phiy_s.T)
             disp_z = a_out[i,:].dot(Phiz_s.T)
             NewCoordsx =  disp_x.copy() + Coords[:,0].copy()
@@ -512,19 +512,20 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
                 outFile = open(out_folder + '/Simulation_results/Displ_0'+str(ccdumb)+'.vtk','w')
             else:
                 outFile = open(out_folder+ '/Simulation_results/Displ_'+str(ccdumb)+'.vtk','w')
+            #Write shape of LV in vtk file
             outFile.write('# vtk DataFile Version 4.0\n')
             outFile.write('vtk output\n')
             outFile.write('ASCII\n')
             outFile.write('DATASET UNSTRUCTURED_GRID \n')
             outFile.write('POINTS '+str(Coords.shape[0])+' float\n')
-            for j in range(Coords.shape[0]):
+            for j in range(Coords.shape[0]): #write coordinates in file
                 outFile.write(str(Coords[j,0])+' ')
                 outFile.write(str(Coords[j,1])+' ')
                 outFile.write(str(Coords[j,2])+' ')
                 outFile.write('\n')
             outFile.write( 'CELLS ' + str( Els.shape[0] ) + ' ' + str( (Els.shape[0]) * 5 ) )
             outFile.write('\n')
-            for k in range( Els.shape[0] ):
+            for k in range( Els.shape[0] ): #write nodes in each cells in file
                 outFile.write( '4 ' )
                 for j in range( 4 ):
                     outFile.write( str( Els[k,j]) + ' ' )
@@ -536,11 +537,11 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
             outFile.write('\nPOINT_DATA '+str(Coords.shape[0])+'\n')
             outFile.write('VECTORS displ float \n')
             for k in range(Coords.shape[0]):
-                outFile.write('%1.4f %1.4f %1.4f \n' %(disp_x[k],disp_y[k],disp_z[k]) )
+                outFile.write('%1.4f %1.4f %1.4f \n' %(disp_x[k],disp_y[k],disp_z[k]) ) #write displacement for each node
             outFile.close()
             ccdumb+=1
 
-        ff = open(out_folder + '/P_volumes.txt','w')
+        ff = open(out_folder + '/P_volumes.txt','w') #save pressure and volumn throughout simulation
         for i in range(len(volume)):
             ff.write('%1.4f ' %volume[i])
             ff.write('0.0 ')
@@ -548,7 +549,7 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
             ff.write('\n')
         ff.close()
 
-ff = open(out_folder+'/Newtork_architecture.py','w')
+ff = open(out_folder+'/Newtork_architecture.py','w') #save the architecture of the NN
 
 ff.write('n_modesU          = %d\n' %n_modesU)
 ff.write('hidden_neurons    = %d\n' %hidden_neurons)
