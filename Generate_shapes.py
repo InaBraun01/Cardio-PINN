@@ -41,6 +41,8 @@ import numpy as np
 import os, sys
 from   vtk.util.numpy_support import vtk_to_numpy
 
+np.random.seed(10) #set a seed
+
 
 # Input section
 local_path    = os.getcwd()
@@ -57,7 +59,7 @@ LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
 
 #vector of amplitudes used in the model
-ampl_vector       = [3,1,1,-0.5]
+ampl_vector       = None
 
 if ampl_vector is not None:
     #check if given vector of amplitudes has the right length
@@ -158,7 +160,6 @@ if ampl_vector == None:
         coeffs_boundaries[ii,1] = float(dd[1]) # max value
         #create ampl_vector with random values in the appropriate range for that amplitude
         ampl_vector[ii] = coeffs_boundaries[ii,0]*ww[ii]+ coeffs_boundaries[ii,1]*(1- ww[ii])
-
 
 Coords = np.zeros((n_points,3)) #vector the coordinates of each point
 e_t = np.zeros((n_points,3)) #vector for transmural local physiological directions
