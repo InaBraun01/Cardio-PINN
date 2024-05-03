@@ -8,6 +8,7 @@ Copiright:  Buoso Stefano 2021. ETH Zurich
 import sys,os,shutil
 import tensorflow.compat.v1 as tf #code was written for the older tensorflow version 1.10
 tf.disable_v2_behavior()  #disable version 2 behavior of tensor flow
+tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -18,6 +19,8 @@ from   vtk.util.numpy_support import vtk_to_numpy
 import DeepCardioFunctions as dc
 
 import matplotlib as mpl
+
+tf.compat.v1.set_random_seed(10)     #set seed
 
 #devine activation function
 def mySwish(x):
@@ -263,7 +266,7 @@ hidden_neurons    = 10 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 250 # number of training epocs
+epochs           = 300 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
