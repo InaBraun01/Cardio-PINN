@@ -38,20 +38,23 @@ Copiright:  Buoso Stefano 2021. ETH Zurich
 # Import packages
 import vtk
 import numpy as np
+np.bool = np.bool_
 import os, sys
 from   vtk.util.numpy_support import vtk_to_numpy
 
-np.random.seed(10) #set a seed
+np.random.seed(42) #set a seed
+
 
 
 # Input section
 local_path    = os.getcwd()
 POD_folder    = local_path + '/Shape_model/POD_bases/'
+Scaled_POD_folder = local_path + '/Shape_model/Scaled_POD_bases/'
 out_path      = local_path + '/Synthetic_shapes/'
 out_case      = '/Shape1/'
 
 #number of bases used
-n_modes     = 4
+n_modes     = 5
 ampl_vector = None
 
 POD_files  = np.sort(next(os.walk(POD_folder))[2])
@@ -59,7 +62,8 @@ LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
 
 #vector of amplitudes used in the model
-ampl_vector       = None
+#ampl_vector       = [ 111.018196, -39.933495, -63.164455, 226.28929, -437.35922] #first 5 modes for Bobo
+ampl_vector = None
 
 if ampl_vector is not None:
     #check if given vector of amplitudes has the right length
@@ -79,7 +83,8 @@ PHI_t = []
 PHI_l = []
 for m_sel in range(n_modes):
     #matrix containg the 3D coordinated of the 4804 nodes on the mesh
-    Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_points.npy')
+    #Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_points.npy')
+    Phi_matrix  = np.load(Scaled_POD_folder+'/Phi'+str(m_sel)+'_scaled_points.npy')  #scale all of the coordinates of the mesh nodes as done in the mesh generation process
 
 #    if m_sel == 0:
 #        PHI = np.concatenate((Phi_matrix[:,0].reshape(-1,1),Phi_matrix[:,1].reshape(-1,1),Phi_matrix[:,2].reshape(-1,1)),0)
@@ -168,6 +173,7 @@ e_c = np.zeros((n_points,3)) #vector for circumferential local physiological dir
 
 #calculate coordinates of new synthetic geometry as a linear combination of the POD bases for the coordinates and physiologial direction with the amplitued as the prefactor
 for ii in range(n_modes):
+
     Coords += PHI[ii]*ampl_vector[ii]
     e_c += PHI_c[ii]*ampl_vector[ii]
     e_l += PHI_l[ii]*ampl_vector[ii]

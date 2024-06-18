@@ -266,7 +266,7 @@ hidden_neurons    = 10 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 300 # number of training epocs
+epochs           = 30 # number of training epocs (in the paper used 300 epochs)
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -504,12 +504,15 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
         ccdumb = 0
         for i in range(0,n_steps,2):
             #for i simulation step calculate the displacement vector and new coordinates
+
             disp_x = a_out[i,:].dot(Phix_s.T) #Phix_s contribution of FM in x direction
             disp_y = a_out[i,:].dot(Phiy_s.T)
             disp_z = a_out[i,:].dot(Phiz_s.T)
+
             NewCoordsx =  disp_x.copy() + Coords[:,0].copy()
             NewCoordsy =  disp_y.copy() + Coords[:,1].copy()
             NewCoordsz =  disp_z.copy() + Coords[:,2].copy()
+
 
             if ccdumb<10:
                 outFile = open(out_folder + '/Simulation_results/Displ_0'+str(ccdumb)+'.vtk','w')
@@ -522,9 +525,13 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
             outFile.write('DATASET UNSTRUCTURED_GRID \n')
             outFile.write('POINTS '+str(Coords.shape[0])+' float\n')
             for j in range(Coords.shape[0]): #write coordinates in file
-                outFile.write(str(Coords[j,0])+' ')
-                outFile.write(str(Coords[j,1])+' ')
-                outFile.write(str(Coords[j,2])+' ')
+                # outFile.write(str(Coords[j,0])+' ')  #write original coordinates in vtk file
+                # outFile.write(str(Coords[j,1])+' ') #write original coordinates in vtk file
+                # outFile.write(str(Coords[j,2])+' ') #write original coordinates in vtk file
+
+                outFile.write(str(NewCoordsx[j])+' ')  #write updated coordinates in vtk file
+                outFile.write(str(NewCoordsy[j])+' ')#write updated coordinates in vtk file
+                outFile.write(str(NewCoordsz[j])+' ')#write updated coordinates in vtk file
                 outFile.write('\n')
             outFile.write( 'CELLS ' + str( Els.shape[0] ) + ' ' + str( (Els.shape[0]) * 5 ) )
             outFile.write('\n')
@@ -562,3 +569,14 @@ ff.write('n_input_variables = %d\n' %n_input_variables)
 ff.write('pressure_normalization = %1.4f\n' %pressure_normalization)
 ff.write('stress_normalization   = %1.4f\n' %stress_normalization)
 ff.close()
+
+
+
+#test 
+# save the original coordinates and see if the displacement field can be displayed in paraview
+# then save the new coordinates and see if you can see the left ventricle move overtime
+
+#run Bobo with only 5 modes (with old hyperparams) => output calculated modes and create mesh for time frame zero using Generate_shapes.py, compare with output from mesh generation
+#run PINN on generated synthetic mesh
+#look at pv loop and loss function
+#compare generated meshes from MRI with generated meshes from PINN
