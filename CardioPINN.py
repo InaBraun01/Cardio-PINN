@@ -266,7 +266,7 @@ hidden_neurons    = 10 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 30 # number of training epocs (in the paper used 300 epochs)
+epochs           = 300 # number of training epocs (in the paper used 300 epochs)
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 

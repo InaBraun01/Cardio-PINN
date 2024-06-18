@@ -62,8 +62,9 @@ LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
 
 #vector of amplitudes used in the model
-#ampl_vector       = [ 111.018196, -39.933495, -63.164455, 226.28929, -437.35922] #first 5 modes for Bobo
-ampl_vector = None
+#ampl_vector       = [119.50215,-30.875738 ,-4.105781,27.332035,-42.80091] #first 5 modes for Bobo
+ampl_vector = [2008.7720917120876,-44.63726845772375,-3.8392332104077767,23.68891526691269,-10.332912320107004] #these are the rescaled modes for Bobo using only 5 modes to fit
+#ampl_vector = None
 
 if ampl_vector is not None:
     #check if given vector of amplitudes has the right length
