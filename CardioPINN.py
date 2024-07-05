@@ -235,8 +235,8 @@ def PressureUpdateSystole(active_s):
 # Input section
 local_path    = os.getcwd()
 cases_folder  = local_path + '/Synthetic_shapes/'
-case_name     = 'Shape1'
-mesh_name     = 'Anatomy.vtk'
+case_name     = 'Bobo_fit_5_modes'
+mesh_name     = 'scaled_Anatomy.vtk'
 POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
@@ -250,7 +250,7 @@ stiff_scale      = 0.75   # scaling value of shear moduli of the material model 
 # Circulation parameters
 Windkessel_R  = 50.0   # systemic circulation resistance
 Windkessel_C  = 5.0e-6 # systemic circulation compliance
-end_diastolic_LV_pressure = 15.0  # end diastolic left ventricular pressure value
+end_diastolic_LV_pressure = 10.0  # end diastolic left ventricular pressure value (default is 15 in the paper they mention it should be 20)
 diastolic_aortic_pressure = 45.0  # end diastolic aortic pressure value
 
 # Constant values for all simulations
@@ -263,7 +263,7 @@ n_input_variables = 2  # number of input variables
 n_modesU          = 10 # number of functional bases as last layer
 hidden_layers     = 5  # number of hidden layers
 hidden_neurons    = 10 # number of neurons per hidden layer
-pressure_normalization = 150.0 # scaling value for pressure [mmHg]
+pressure_normalization = 150.0 # scaling value for pressure [mmHg] (scale pressure value down by 1/pressure_normalization before inputting into NN)
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
 epochs           = 300 # number of training epocs (in the paper used 300 epochs)

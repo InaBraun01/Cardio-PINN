@@ -40,7 +40,7 @@ import vtk
 import numpy as np
 np.bool = np.bool_
 import os, sys
-from   vtk.util.numpy_support import vtk_to_numpy
+from vtk.util.numpy_support import vtk_to_numpy
 
 np.random.seed(42) #set a seed
 
@@ -49,9 +49,8 @@ np.random.seed(42) #set a seed
 # Input section
 local_path    = os.getcwd()
 POD_folder    = local_path + '/Shape_model/POD_bases/'
-Scaled_POD_folder = local_path + '/Shape_model/Scaled_POD_bases/'
 out_path      = local_path + '/Synthetic_shapes/'
-out_case      = '/Shape1/'
+out_case      = '/Bobo_fit_5_modes/'
 
 #number of bases used
 n_modes     = 5
@@ -62,7 +61,6 @@ LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
 
 #vector of amplitudes used in the model
-#ampl_vector       = [119.50215,-30.875738 ,-4.105781,27.332035,-42.80091] #first 5 modes for Bobo
 ampl_vector = [2008.7720917120876,-44.63726845772375,-3.8392332104077767,23.68891526691269,-10.332912320107004] #these are the rescaled modes for Bobo using only 5 modes to fit
 #ampl_vector = None
 
@@ -85,7 +83,7 @@ PHI_l = []
 for m_sel in range(n_modes):
     #matrix containg the 3D coordinated of the 4804 nodes on the mesh
     #Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_points.npy')
-    Phi_matrix  = np.load(Scaled_POD_folder+'/Phi'+str(m_sel)+'_scaled_points.npy')  #scale all of the coordinates of the mesh nodes as done in the mesh generation process
+    Phi_matrix  = np.load(POD_folder+'/Phi'+str(m_sel)+'_points.npy')  #scale all of the coordinates of the mesh nodes as done in the mesh generation process
 
 #    if m_sel == 0:
 #        PHI = np.concatenate((Phi_matrix[:,0].reshape(-1,1),Phi_matrix[:,1].reshape(-1,1),Phi_matrix[:,2].reshape(-1,1)),0)
