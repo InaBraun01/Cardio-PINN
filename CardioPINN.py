@@ -17,6 +17,7 @@ import vtk
 from   vtk.util.numpy_support import vtk_to_numpy
 
 import DeepCardioFunctions as dc
+import test_functions as test
 
 import matplotlib as mpl
 
@@ -240,6 +241,10 @@ mesh_name     = 'scaled_Anatomy.vtk'
 POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
+#Files used for testing
+fibres_filename = "fibres_Maike.vtu"
+vtk_file = "Mesh_Maike.vtk"
+
 # Anatomical data
 endo_fiber_angle =  40.0  # helix angle at endocardium [deg]
 epi_fiber_angle  = - 60.0 # helix angle at epicardium [deg]
@@ -294,7 +299,8 @@ Fiber_params    = dc.class_FibersData(endo_fiber_angle,epi_fiber_angle,0,0,gamma
 
 # Read anatomy and parametrization
 print('. Reading reference parametric anatomy')
-Coords, Els, n_points,n_el, Node_par_coords, e_t, e_l, e_c ,Faces_Endo = dc.LoadModelAnatomy(cases_folder + case_name + '/' + mesh_name)
+#Coords, Els, n_points,n_el, Node_par_coords, e_t, e_l, e_c ,Faces_Endo = dc.LoadModelAnatomy(cases_folder + case_name + '/' + mesh_name)
+Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = test.LoadModelAnatomy(vtk_file)
 
 # Load functional model bases (FM)
 PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_modesU)
@@ -314,7 +320,9 @@ Phiz_s = PHI[2*n_points:3*n_points,:] # FM contribution to z coordinate
 
 
 # Generate microsctructure
-fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params)
+#fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params) #fx_s: x coordinate of fibre direction for each node in numpy array
+fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(fibres_filename)
+
 dc.WriteFibers2VTK(Coords,Els, fx_s,fy_s,fz_s, sx_s,sy_s,sz_s, out_folder+'/GeneratedMicrostructure.vtk')
 
 # Generate Nodal area vector for the computation of boundary traction forces
