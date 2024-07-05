@@ -17,7 +17,7 @@ import vtk
 from   vtk.util.numpy_support import vtk_to_numpy
 
 import DeepCardioFunctions as dc
-import test_functions as test
+import monkey_functions as test
 
 import matplotlib as mpl
 
@@ -231,19 +231,29 @@ def PressureUpdateSystole(active_s):
         p_0 += delta_p
 
     return p_0
+#try to scale the mesh first and then calculate the fibre orientation and then run the code!!!!
+#the fibre orientation generated here in GeneratedMicrostructure.vtk d=looks a lot more messy than the one exported from Comsol and input here
+#that it looks messy could also be because the order of the nodes in the Scaled_fibres and Scaled_Mesh vtk files is different
+#try to also export lables and x_l, x_c, x_t from comsol!!!!
+#then try to run PINN again
+#Because problem right now is that the coordinates of the points in fibres vtk file and mesh vtk file do not match
+
+#IF THIS DOES NOT HELP
+#plan use mesh from Bobo created using 5 modes for which I can calculate the CardioPINN
+#Calculate f and s once using comsol and once using code => see if they are similar (maybe compare generated microstructure vtk)
 
 
 # Input section
 local_path    = os.getcwd()
 cases_folder  = local_path + '/Synthetic_shapes/'
-case_name     = 'Bobo_fit_5_modes'
-mesh_name     = 'scaled_Anatomy.vtk'
+case_name     = 'Maike'
+#mesh_name     = 'scaled_Anatomy.vtk'
 POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
 #Files used for testing
-fibres_filename = "fibres_Maike.vtu"
-vtk_file = "Mesh_Maike.vtk"
+fibres_filename = "Scaled_fibres_Maike.vtu"
+vtk_file = "Scaled_Mesh_Maike.vtk"
 
 # Anatomical data
 endo_fiber_angle =  40.0  # helix angle at endocardium [deg]
