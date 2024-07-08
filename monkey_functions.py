@@ -61,7 +61,8 @@ def GenerateFibres(fibres_filename):
     from vtk.util.numpy_support import vtk_to_numpy
 
     # Read the VTU file
-    reader = vtk.vtkXMLUnstructuredGridReader()
+    #reader = vtk.vtkXMLUnstructuredGridReader()
+    reader = vtk.vtkUnstructuredGridReader()
     reader.SetFileName(fibres_filename) #for each node have all 3 components of the fibre, sheet, normal direction stored
     reader.Update()
 
@@ -72,22 +73,21 @@ def GenerateFibres(fibres_filename):
     point_data = grid.GetPointData()
     num_arrays = point_data.GetNumberOfArrays()
 
+    # print("Point Data Arrays:")
+    # for i in range(point_data.GetNumberOfArrays()):
+    #     array = point_data.GetArray(i)
+    #     array_name = array.GetName()
+    #     print(array_name)
+
 
     f_x  = vtk_to_numpy(grid.GetPointData().GetArray('First_basis_vector,_X-component'))
     f_y  = vtk_to_numpy(grid.GetPointData().GetArray('First_basis_vector,_Y-component'))
     f_z  = vtk_to_numpy(grid.GetPointData().GetArray('First_basis_vector,_Z-component'))
 
-    s_x  = vtk_to_numpy(grid.GetPointData().GetArray('Second_basis_vector,_X-component'))
-    s_y  = vtk_to_numpy(grid.GetPointData().GetArray('Second_basis_vector,_Y-component'))
-    s_z  = vtk_to_numpy(grid.GetPointData().GetArray('Second_basis_vector,_Z-component'))
+    s_x  = vtk_to_numpy(grid.GetPointData().GetArray('Third_basis_vector,_X-component'))
+    s_y  = vtk_to_numpy(grid.GetPointData().GetArray('Third_basis_vector,_Y-component'))
+    s_z  = vtk_to_numpy(grid.GetPointData().GetArray('Third_basis_vector,_Z-component'))
 
-    return f_x,f_y,f_z,s_x,s_y,s_z
+    return -f_x,-f_y,-f_z,-s_x,-s_y,-s_z
 
-f_x,f_y,f_z,s_x,s_y,s_z = GenerateFibres("fibres_Maike.vtu")
 
-print(f_x)
-print(f_y)
-print(f_z)
-print(s_x)
-print(s_y)
-print(s_z)
