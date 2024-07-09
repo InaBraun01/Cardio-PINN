@@ -12,6 +12,7 @@ tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
 
 import numpy as np
 import matplotlib.pyplot as plt
+import math 
 
 import vtk
 from   vtk.util.numpy_support import vtk_to_numpy
@@ -252,11 +253,12 @@ POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
 #Files used for testing
-fibres_filename = "Scaled_fibres_Maike.vtu"
-vtk_file = "Scaled_Mesh_Maike.vtk"
+#fibres_filename = "Scaled_fibres_Maike.vtu"
+vtk_file = "Scaled_combined_mesh.vtk"
+#vtk_file = "Synthetic_shapes/Shape1/Anatomy.vtk"
 
 # Anatomical data
-endo_fiber_angle =  40.0  # helix angle at endocardium [deg]
+endo_fiber_angle =  60.0  # helix angle at endocardium [deg]
 epi_fiber_angle  = - 60.0 # helix angle at epicardium [deg]
 gamma_angle      = - 65.0 # orientation sheets [deg]
 max_act          = 0.85e5 # maximum actuation stress value [Pa]
@@ -278,7 +280,7 @@ n_input_variables = 2  # number of input variables
 n_modesU          = 10 # number of functional bases as last layer
 hidden_layers     = 5  # number of hidden layers
 hidden_neurons    = 10 # number of neurons per hidden layer
-pressure_normalization = 150.0 # scaling value for pressure [mmHg] (scale pressure value down by 1/pressure_normalization before inputting into NN)
+pressure_normalization = 100.0 # scaling value for pressure [mmHg] (scale pressure value down by 1/pressure_normalization before inputting into NN)
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
 epochs           = 300 # number of training epocs (in the paper used 300 epochs)
@@ -293,15 +295,27 @@ if not os.path.exists(out_folder):
 #             Biventricular Finite-Element Models of Healthy and Failing Swine 
 #             Hearts From High-Resolution DT-MRI. Front. Physiol. 9:539.
 #             doi: 10.3389/fphys.2018.00539
-a_iso = tf.constant(1.05e3,dtype=np.float32)
-b_iso = tf.constant(7.52,dtype=np.float32)
-a_f   = tf.constant(3.465e3,dtype=np.float32)
-b_f   = tf.constant(14.472,dtype=np.float32)
-a_s   = tf.constant(0.481e3,dtype=np.float32)
-b_s   = tf.constant(12.548,dtype=np.float32)
-a_fs  = tf.constant(0.283e3,dtype=np.float32)
-b_fs  = tf.constant(3.088,dtype=np.float32)
-Bulk  = tf.constant(10.5e5,dtype=np.float32)
+# a_iso = tf.constant(1.05e3,dtype=np.float32)
+# b_iso = tf.constant(7.52,dtype=np.float32)
+# a_f   = tf.constant(3.465e3,dtype=np.float32)
+# b_f   = tf.constant(14.472,dtype=np.float32)
+# a_s   = tf.constant(0.481e3,dtype=np.float32)
+# b_s   = tf.constant(12.548,dtype=np.float32)
+# a_fs  = tf.constant(0.283e3,dtype=np.float32)
+# b_fs  = tf.constant(3.088,dtype=np.float32)
+# Bulk  = tf.constant(10.5e5,dtype=np.float32)
+
+#Material model from  Sommer, A.J. Schrief,M. Andrä,M. Sacherer, C. Viertler, H. Wolinski, and GA. Holzapfel, 
+# “Biomechanical properties and microstructure of human ventricular myocardium",Acta Biomaterialia 24,172-192(2015)
+a_iso = tf.constant(0.78391e3,dtype=np.float32)
+b_iso = tf.constant(7.0797,dtype=np.float32)
+a_f   = tf.constant(1.6e3,dtype=np.float32)
+b_f   = tf.constant(10.54,dtype=np.float32)
+a_s   = tf.constant(0.5e3,dtype=np.float32)
+b_s   = tf.constant(8.9023,dtype=np.float32)
+a_fs  = tf.constant(0,dtype=np.float32)
+b_fs  = tf.constant(1,dtype=np.float32)
+Bulk  = tf.constant(5e5,dtype=np.float32) #10.5e5
 
 # Determine classes for material models parameters and fiber orientations
 HogdenHol       = dc.matParameters(a_iso, b_iso, a_f, b_f, a_s, b_s, a_fs, b_fs,Bulk)
@@ -309,7 +323,7 @@ Fiber_params    = dc.class_FibersData(endo_fiber_angle,epi_fiber_angle,0,0,gamma
 
 # Read anatomy and parametrization
 print('. Reading reference parametric anatomy')
-#Coords, Els, n_points,n_el, Node_par_coords, e_t, e_l, e_c ,Faces_Endo = dc.LoadModelAnatomy(cases_folder + case_name + '/' + mesh_name)
+#Coords, Els, n_points,n_el, Node_par_coords, e_t, e_l, e_c ,Faces_Endo = dc.LoadModelAnatomy(vtk_file)
 Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = test.LoadModelAnatomy(vtk_file)
 
 # Load functional model bases (FM)
@@ -331,9 +345,9 @@ Phiz_s = PHI[2*n_points:3*n_points,:] # FM contribution to z coordinate
 
 # Generate microsctructure
 #fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params) #fx_s: x coordinate of fibre direction for each node in numpy array
-fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(fibres_filename)
+fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(vtk_file)
 
-dc.WriteFibers2VTK(Coords,Els, fx_s,fy_s,fz_s, sx_s,sy_s,sz_s, out_folder+'/GeneratedMicrostructure.vtk')
+dc.WriteFibers2VTK(Coords,Els,fx_s,fy_s, fz_s, sx_s, sy_s,sz_s, out_folder+'/GeneratedMicrostructure.vtk')
 
 # Generate Nodal area vector for the computation of boundary traction forces
 Nodal_area    = dc.GenerateNodalAreas(Faces_Endo,Coords)
@@ -444,6 +458,11 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
         for i in range(param_grid.shape[0]): 
             _,c = sess.run([optimiser, loss],feed_dict={p_tf:[param_grid[i,:]]}) #run optimiser and loss for all combinations of input parameters
             avg_cost += c    #sum up the loss for all different inputs -> not really averaged
+            # print(c)
+            if math.isnan(c):
+                print("Loss is nan")
+                sys.exit()
+
         print("Epoch:", (epoch + 1), "cost =", str(avg_cost))
         loss_vector[epoch] = avg_cost
     plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
