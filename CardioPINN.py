@@ -253,14 +253,12 @@ POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
 #Files used for testing
-#fibres_filename = "Scaled_fibres_Maike.vtu"
-vtk_file = "Scaled_combined_mesh.vtk"
-#vtk_file = "Synthetic_shapes/Shape1/Anatomy.vtk"
+vtk_file = "Scaled_Mesh_Maike.vtk"
 
 # Anatomical data
-endo_fiber_angle =  60.0  # helix angle at endocardium [deg]
-epi_fiber_angle  = - 60.0 # helix angle at epicardium [deg]
-gamma_angle      = - 65.0 # orientation sheets [deg]
+endo_fiber_angle =  np.pi/3  # helix angle at endocardium [rad]
+epi_fiber_angle  = -np.pi/3# helix angle at epicardium [rad]
+gamma_angle      = - 65.0 # orientation sheets [deg] #I don't need in my implementation
 max_act          = 0.85e5 # maximum actuation stress value [Pa]
 stiff_scale      = 0.75   # scaling value of shear moduli of the material model [-] 
 
@@ -345,7 +343,9 @@ Phiz_s = PHI[2*n_points:3*n_points,:] # FM contribution to z coordinate
 
 # Generate microsctructure
 #fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params) #fx_s: x coordinate of fibre direction for each node in numpy array
-fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(vtk_file)
+fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(vtk_file,Fiber_params)
+# fx_s,fy_s,fz_s = f_vector.T
+# sx_s, sy_s,sz_s = s_vector.T
 
 dc.WriteFibers2VTK(Coords,Els,fx_s,fy_s, fz_s, sx_s, sy_s,sz_s, out_folder+'/GeneratedMicrostructure.vtk')
 
