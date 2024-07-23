@@ -232,28 +232,20 @@ def PressureUpdateSystole(active_s):
         p_0 += delta_p
 
     return p_0
-#try to scale the mesh first and then calculate the fibre orientation and then run the code!!!!
-#the fibre orientation generated here in GeneratedMicrostructure.vtk d=looks a lot more messy than the one exported from Comsol and input here
-#that it looks messy could also be because the order of the nodes in the Scaled_fibres and Scaled_Mesh vtk files is different
-#try to also export lables and x_l, x_c, x_t from comsol!!!!
-#then try to run PINN again
-#Because problem right now is that the coordinates of the points in fibres vtk file and mesh vtk file do not match
 
-#IF THIS DOES NOT HELP
-#plan use mesh from Bobo created using 5 modes for which I can calculate the CardioPINN
-#Calculate f and s once using comsol and once using code => see if they are similar (maybe compare generated microstructure vtk)
-
+#Input file 
+vtk_file = "LV_mean_half_scaled.vtk"
 
 # Input section
 local_path    = os.getcwd()
 cases_folder  = local_path + '/Synthetic_shapes/'
-case_name     = 'Maike'
-#mesh_name     = 'scaled_Anatomy.vtk'
+case_name     = vtk_file.split(".")[0].split("_")[0]
 POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
-#Files used for testing
-vtk_file = "Scaled_Mesh_Maike.vtk"
+#Scale the input mesh inorder to change the unit at which the node positions are given from mm to m
+test.Scale_mesh(vtk_file, out_folder)
+
 
 # Anatomical data
 endo_fiber_angle =  np.pi/3  # helix angle at endocardium [rad]
@@ -278,10 +270,10 @@ n_input_variables = 2  # number of input variables
 n_modesU          = 10 # number of functional bases as last layer
 hidden_layers     = 5  # number of hidden layers
 hidden_neurons    = 10 # number of neurons per hidden layer
-pressure_normalization = 100.0 # scaling value for pressure [mmHg] (scale pressure value down by 1/pressure_normalization before inputting into NN)
+pressure_normalization = 150.0 # scaling value for pressure [mmHg] (scale pressure value down by 1/pressure_normalization before inputting into NN)
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 300 # number of training epocs (in the paper used 300 epochs)
+epochs           = 10 # number of training epocs (in the paper used 300 epochs)
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -293,27 +285,27 @@ if not os.path.exists(out_folder):
 #             Biventricular Finite-Element Models of Healthy and Failing Swine 
 #             Hearts From High-Resolution DT-MRI. Front. Physiol. 9:539.
 #             doi: 10.3389/fphys.2018.00539
-# a_iso = tf.constant(1.05e3,dtype=np.float32)
-# b_iso = tf.constant(7.52,dtype=np.float32)
-# a_f   = tf.constant(3.465e3,dtype=np.float32)
-# b_f   = tf.constant(14.472,dtype=np.float32)
-# a_s   = tf.constant(0.481e3,dtype=np.float32)
-# b_s   = tf.constant(12.548,dtype=np.float32)
-# a_fs  = tf.constant(0.283e3,dtype=np.float32)
-# b_fs  = tf.constant(3.088,dtype=np.float32)
-# Bulk  = tf.constant(10.5e5,dtype=np.float32)
+a_iso = tf.constant(1.05e3,dtype=np.float32)
+b_iso = tf.constant(7.52,dtype=np.float32)
+a_f   = tf.constant(3.465e3,dtype=np.float32)
+b_f   = tf.constant(14.472,dtype=np.float32)
+a_s   = tf.constant(0.481e3,dtype=np.float32)
+b_s   = tf.constant(12.548,dtype=np.float32)
+a_fs  = tf.constant(0.283e3,dtype=np.float32)
+b_fs  = tf.constant(3.088,dtype=np.float32)
+Bulk  = tf.constant(10.5e5,dtype=np.float32)
 
 #Material model from  Sommer, A.J. Schrief,M. Andrä,M. Sacherer, C. Viertler, H. Wolinski, and GA. Holzapfel, 
 # “Biomechanical properties and microstructure of human ventricular myocardium",Acta Biomaterialia 24,172-192(2015)
-a_iso = tf.constant(0.78391e3,dtype=np.float32)
-b_iso = tf.constant(7.0797,dtype=np.float32)
-a_f   = tf.constant(1.6e3,dtype=np.float32)
-b_f   = tf.constant(10.54,dtype=np.float32)
-a_s   = tf.constant(0.5e3,dtype=np.float32)
-b_s   = tf.constant(8.9023,dtype=np.float32)
-a_fs  = tf.constant(0,dtype=np.float32)
-b_fs  = tf.constant(1,dtype=np.float32)
-Bulk  = tf.constant(5e5,dtype=np.float32) #10.5e5
+# a_iso = tf.constant(0.78391e3,dtype=np.float32)
+# b_iso = tf.constant(7.0797,dtype=np.float32)
+# a_f   = tf.constant(1.6e3,dtype=np.float32)
+# b_f   = tf.constant(10.54,dtype=np.float32)
+# a_s   = tf.constant(0.5e3,dtype=np.float32)
+# b_s   = tf.constant(8.9023,dtype=np.float32)
+# a_fs  = tf.constant(0,dtype=np.float32)
+# b_fs  = tf.constant(1,dtype=np.float32)
+# Bulk  = tf.constant(5e5,dtype=np.float32) #10.5e5
 
 # Determine classes for material models parameters and fiber orientations
 HogdenHol       = dc.matParameters(a_iso, b_iso, a_f, b_f, a_s, b_s, a_fs, b_fs,Bulk)
@@ -322,7 +314,7 @@ Fiber_params    = dc.class_FibersData(endo_fiber_angle,epi_fiber_angle,0,0,gamma
 # Read anatomy and parametrization
 print('. Reading reference parametric anatomy')
 #Coords, Els, n_points,n_el, Node_par_coords, e_t, e_l, e_c ,Faces_Endo = dc.LoadModelAnatomy(vtk_file)
-Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = test.LoadModelAnatomy(vtk_file)
+Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = test.LoadModelAnatomy(f"{out_folder}/scaled_{vtk_file}")
 
 # Load functional model bases (FM)
 PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_modesU)
@@ -343,7 +335,7 @@ Phiz_s = PHI[2*n_points:3*n_points,:] # FM contribution to z coordinate
 
 # Generate microsctructure
 #fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params) #fx_s: x coordinate of fibre direction for each node in numpy array
-fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(vtk_file,Fiber_params)
+fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(f"{out_folder}/scaled_{vtk_file}",Fiber_params)
 # fx_s,fy_s,fz_s = f_vector.T
 # sx_s, sy_s,sz_s = s_vector.T
 
