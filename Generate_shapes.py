@@ -50,10 +50,10 @@ np.random.seed(42) #set a seed
 local_path    = os.getcwd()
 POD_folder    = local_path + '/Shape_model/POD_bases/'
 out_path      = local_path + '/Synthetic_shapes/'
-out_case      = '/Bobo_fit_5_modes/'
+out_case      = '/Shape1/'
 
 #number of bases used
-n_modes     = 5
+n_modes     = 1
 ampl_vector = None
 
 POD_files  = np.sort(next(os.walk(POD_folder))[2])
@@ -61,8 +61,8 @@ LV_mesh    = local_path + '/Shape_model/LV_mean.vtk'
 ampl_file  = local_path + '/Shape_model/Amplitude_ranges.txt'
 
 #vector of amplitudes used in the model
-ampl_vector = [2008.7720917120876,-44.63726845772375,-3.8392332104077767,23.68891526691269,-10.332912320107004] #these are the rescaled modes for Bobo using only 5 modes to fit
-#ampl_vector = None
+#ampl_vector = [2008.7720917120876,-44.63726845772375,-3.8392332104077767,23.68891526691269,-10.332912320107004] #these are the rescaled modes for Bobo using only 5 modes to fit
+ampl_vector = [1]
 
 if ampl_vector is not None:
     #check if given vector of amplitudes has the right length

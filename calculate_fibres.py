@@ -108,5 +108,5 @@ new_data.GetPointData().AddArray(normalizedSArray)
 # Write the result to a new VTK file
 writer = vtk.vtkUnstructuredGridWriter()
 writer.SetInputData(new_data)
-writer.SetFileName("output_test_n_s_f.vtk")
+writer.SetFileName("Scaled_Maike_n_s_f.vtk")
 writer.Write()

@@ -4,12 +4,12 @@ import numpy as np
 import os
 import pyvista as pv
 
-def Scale_mesh(vtk_file, out_folder):
+def Scale_mesh(vtk_file, data_file, out_folder):
     """In this function the input mesh in which the mesh position is given in the unit mm is scaled,
     so that the positons of the ndoes are given in m """
 
     # Read the original model from a VTK file
-    mesh = pv.read(vtk_file)
+    mesh = pv.read(data_file + vtk_file)
 
     # Define the scaling factor to change the unit from m to mm
     scale_factor = 1/1000  # go back to unit of mm
