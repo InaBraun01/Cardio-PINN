@@ -1,6 +1,31 @@
 
 import sys
 import numpy as np
+import os
+import pyvista as pv
+
+def Scale_mesh(vtk_file, out_folder):
+    """In this function the input mesh in which the mesh position is given in the unit mm is scaled,
+    so that the positons of the ndoes are given in m """
+
+    # Read the original model from a VTK file
+    mesh = pv.read(vtk_file)
+
+    # Define the scaling factor to change the unit from m to mm
+    scale_factor = 1/1000  # go back to unit of mm
+
+    # Scale the mesh
+    scaled_mesh = mesh.scale([scale_factor, scale_factor, scale_factor], inplace=False)
+
+    # Copy all point data (features) from the original mesh to the scaled mesh
+    for key in mesh.point_data.keys():
+        scaled_mesh.point_data[key] = mesh.point_data[key]
+
+    # Save the scaled mesh with all features to a new VTK file
+    scaled_mesh.save(f"{out_folder}/scaled_{vtk_file}")
+
+    print("Scaling complete")
+    return
 
 def LoadModelAnatomy(vtk_mean):
 
