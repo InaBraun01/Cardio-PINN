@@ -234,35 +234,36 @@ def PressureUpdateSystole(active_s):
     return p_0
 
 #Input file 
-vtk_file = "LV_mean_half_scaled.vtk"
+data_file = "Test_data/"
+vtk_file = "Synthetic_shapes/double_Maike_ED/PINN_data/double_Maike_ED.vtk"
 
 # Input section
 local_path    = os.getcwd()
 cases_folder  = local_path + '/Synthetic_shapes/'
-case_name     = vtk_file.split(".")[0].split("_")[0]
+case_name     = "double_Maike_ED"
 POD_folder_4D = local_path  + '/Functional_model/'
 out_folder    = cases_folder + case_name + '/PINN_data/'
 
 #Scale the input mesh inorder to change the unit at which the node positions are given from mm to m
-test.Scale_mesh(vtk_file, out_folder)
+#test.Scale_mesh(vtk_file, data_file, out_folder)
 
 
 # Anatomical data
-endo_fiber_angle =  np.pi/3  # helix angle at endocardium [rad]
-epi_fiber_angle  = -np.pi/3# helix angle at epicardium [rad]
-gamma_angle      = - 65.0 # orientation sheets [deg] #I don't need in my implementation
+endo_fiber_angle =  np.pi/3  # helix angle at endocardium [rad] (used to be np.pi/3)
+epi_fiber_angle  = -np.pi/3 # helix angle at epicardium [rad]
+gamma_angle      = - 65.0 # orientation sheets [deg]
 max_act          = 0.85e5 # maximum actuation stress value [Pa]
 stiff_scale      = 0.75   # scaling value of shear moduli of the material model [-] 
 
 # Circulation parameters
 Windkessel_R  = 50.0   # systemic circulation resistance
 Windkessel_C  = 5.0e-6 # systemic circulation compliance
-end_diastolic_LV_pressure = 10.0  # end diastolic left ventricular pressure value (default is 15 in the paper they mention it should be 20)
+end_diastolic_LV_pressure = 15.0  # end diastolic left ventricular pressure value
 diastolic_aortic_pressure = 45.0  # end diastolic aortic pressure value
 
 # Constant values for all simulations
 systole_length            = 250. # length of systole [ms]
-diastole_length           = 650. # length of diastole [ms]
+diastole_length           = 650. # length of diastole [ms] (before 650)
 dt_                       = 5.0  # time step [ms] (only to determine number of iterations)
 
 # Network architecture parameters
@@ -270,10 +271,10 @@ n_input_variables = 2  # number of input variables
 n_modesU          = 10 # number of functional bases as last layer
 hidden_layers     = 5  # number of hidden layers
 hidden_neurons    = 10 # number of neurons per hidden layer
-pressure_normalization = 150.0 # scaling value for pressure [mmHg] (scale pressure value down by 1/pressure_normalization before inputting into NN)
+pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 10 # number of training epocs (in the paper used 300 epochs)
+epochs           = 300 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -285,27 +286,27 @@ if not os.path.exists(out_folder):
 #             Biventricular Finite-Element Models of Healthy and Failing Swine 
 #             Hearts From High-Resolution DT-MRI. Front. Physiol. 9:539.
 #             doi: 10.3389/fphys.2018.00539
-a_iso = tf.constant(1.05e3,dtype=np.float32)
-b_iso = tf.constant(7.52,dtype=np.float32)
-a_f   = tf.constant(3.465e3,dtype=np.float32)
-b_f   = tf.constant(14.472,dtype=np.float32)
-a_s   = tf.constant(0.481e3,dtype=np.float32)
-b_s   = tf.constant(12.548,dtype=np.float32)
-a_fs  = tf.constant(0.283e3,dtype=np.float32)
-b_fs  = tf.constant(3.088,dtype=np.float32)
-Bulk  = tf.constant(10.5e5,dtype=np.float32)
+# a_iso = tf.constant(1.05e3,dtype=np.float32)
+# b_iso = tf.constant(7.52,dtype=np.float32)
+# a_f   = tf.constant(3.465e3,dtype=np.float32)
+# b_f   = tf.constant(14.472,dtype=np.float32)
+# a_s   = tf.constant(0.481e3,dtype=np.float32)
+# b_s   = tf.constant(12.548,dtype=np.float32)
+# a_fs  = tf.constant(0.283e3,dtype=np.float32)
+# b_fs  = tf.constant(3.088,dtype=np.float32)
+# Bulk  = tf.constant(10.5e5,dtype=np.float32)
 
 #Material model from  Sommer, A.J. Schrief,M. Andrä,M. Sacherer, C. Viertler, H. Wolinski, and GA. Holzapfel, 
 # “Biomechanical properties and microstructure of human ventricular myocardium",Acta Biomaterialia 24,172-192(2015)
-# a_iso = tf.constant(0.78391e3,dtype=np.float32)
-# b_iso = tf.constant(7.0797,dtype=np.float32)
-# a_f   = tf.constant(1.6e3,dtype=np.float32)
-# b_f   = tf.constant(10.54,dtype=np.float32)
-# a_s   = tf.constant(0.5e3,dtype=np.float32)
-# b_s   = tf.constant(8.9023,dtype=np.float32)
-# a_fs  = tf.constant(0,dtype=np.float32)
-# b_fs  = tf.constant(1,dtype=np.float32)
-# Bulk  = tf.constant(5e5,dtype=np.float32) #10.5e5
+a_iso = tf.constant(0.78391e3,dtype=np.float32)
+b_iso = tf.constant(7.0797,dtype=np.float32)
+a_f   = tf.constant(1.6e3,dtype=np.float32)
+b_f   = tf.constant(10.54,dtype=np.float32)
+a_s   = tf.constant(0.5e3,dtype=np.float32)
+b_s   = tf.constant(8.9023,dtype=np.float32)
+a_fs  = tf.constant(0,dtype=np.float32)
+b_fs  = tf.constant(1,dtype=np.float32)
+Bulk  = tf.constant(5e5,dtype=np.float32) #10.5e5
 
 # Determine classes for material models parameters and fiber orientations
 HogdenHol       = dc.matParameters(a_iso, b_iso, a_f, b_f, a_s, b_s, a_fs, b_fs,Bulk)
@@ -314,7 +315,7 @@ Fiber_params    = dc.class_FibersData(endo_fiber_angle,epi_fiber_angle,0,0,gamma
 # Read anatomy and parametrization
 print('. Reading reference parametric anatomy')
 #Coords, Els, n_points,n_el, Node_par_coords, e_t, e_l, e_c ,Faces_Endo = dc.LoadModelAnatomy(vtk_file)
-Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = test.LoadModelAnatomy(f"{out_folder}/scaled_{vtk_file}")
+Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = test.LoadModelAnatomy(vtk_file)
 
 # Load functional model bases (FM)
 PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_modesU)
@@ -335,7 +336,7 @@ Phiz_s = PHI[2*n_points:3*n_points,:] # FM contribution to z coordinate
 
 # Generate microsctructure
 #fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params) #fx_s: x coordinate of fibre direction for each node in numpy array
-fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(f"{out_folder}/scaled_{vtk_file}",Fiber_params)
+fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(vtk_file,Fiber_params)
 # fx_s,fy_s,fz_s = f_vector.T
 # sx_s, sy_s,sz_s = s_vector.T
 
@@ -514,7 +515,7 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
                     deltaV = volume[i-1] - volume[i-2] 
                     pressure_LV[i] = PressureUpdateSystole(active_stress[i]) #update pressure accordingly
                     if syst_steps>3: #after three steps in systole
-                        if deltaV > 0 or volume[i-1]<=volume[0]+2.: #if the volumne is increasing or if the volumne is smaller than the volumne at the beginning of diastole
+                        if deltaV > 0 or volume[i-1]<=volume[0]: #if the volumne is increasing or if the volumne is smaller than the volumne at the beginning of diastole
                             ejection = False #change to isovolumetric relaxation 
                 else:
                     print('.... Isovolumetric relaxation')
