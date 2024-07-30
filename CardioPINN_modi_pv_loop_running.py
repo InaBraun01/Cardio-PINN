@@ -161,7 +161,11 @@ def Isovolumetric_PressureUpdate(volume_constraint,active_s):
     dp = 10/133.32#Pa   
     iterations = 0
     err = 1.
-    p_0 = pressure_LV[i-1]  #pressure due to bloof pool
+    if i == 0:
+        p_0 = end_diastolic_LV_pressure
+    else:
+        p_0 = pressure_LV[i-1]  #pressure due to bloof pool
+
     #iterativelu update the pressure until the volume has deviated too much or max iterations are reached
     while err > 0.001 and iterations < 10:
         iterations += 1
@@ -201,6 +205,16 @@ def Compute_Volume(a_sel):
         oc = np.array(NewCoords[sel_el[2],:]) #x,y,z coordinates of the node
         volume_blood_ML += 1.0/6.0*abs(np.dot(np.cross(oa,ob),oc))*1e6  #add together individual volumn parts
 
+    return volume_blood_ML
+
+def initial_Compute_Volume(Faces_Endo,Coords):
+    volume_blood_ML = 0
+    for j in range(len(Faces_Endo)): #for each face of the tetrahedral cells
+        sel_el = Faces_Endo[j] #for all nodes on the face
+        oa = np.array(Coords[sel_el[0],:]) #x,y,z coordinates of the node
+        ob = np.array(Coords[sel_el[1],:]) #x,y,z coordinates of the node
+        oc = np.array(Coords[sel_el[2],:]) #x,y,z coordinates of the node
+        volume_blood_ML += 1.0/6.0*abs(np.dot(np.cross(oa,ob),oc))*1e6  #add together individual volumn parts
     return volume_blood_ML
 
 def PressureUpdateSystole(active_s):
@@ -259,7 +273,7 @@ stiff_scale      = 0.75   # scaling value of shear moduli of the material model 
 # Circulation parameters
 Windkessel_R  = 50.0   # systemic circulation resistance
 Windkessel_C  = 5.0e-6 # systemic circulation compliance
-end_diastolic_LV_pressure = 15.0  # end diastolic left ventricular pressure value
+end_diastolic_LV_pressure = 10.0  # end diastolic left ventricular pressure value
 end_systolic_LV_pressure = 100.0    # end systolic left ventricular pressure value
 diastolic_aortic_pressure = 45.0  # end diastolic aortic pressure value
 
@@ -308,7 +322,7 @@ a_s   = tf.constant(0.5e3,dtype=np.float32)
 b_s   = tf.constant(8.9023,dtype=np.float32)
 a_fs  = tf.constant(0,dtype=np.float32)
 b_fs  = tf.constant(1,dtype=np.float32)
-Bulk  = tf.constant(5e5,dtype=np.float32) #10.5e5
+Bulk  = tf.constant(10e5,dtype=np.float32) #10.5e5
 
 # Determine classes for material models parameters and fiber orientations
 HogdenHol       = dc.matParameters(a_iso, b_iso, a_f, b_f, a_s, b_s, a_fs, b_fs,Bulk)
@@ -418,7 +432,7 @@ layers.append(n_modesU)
 weights, biases = initialize_NN(layers)  #initialize weights for all layers of NN
 
 # Define input placeholder for inpu parameters (pressure,Ta)
-p_tf = tf.placeholder(tf.float32, shape=[None,n_input_variables]) #variable to which data is assigned later
+p_tf = tf.placeholder(tf.float32, shape=[None,n_input_variables], name="input_placeholder") #variable to which data is assigned later
 
 print('. Building network')
 
@@ -431,7 +445,8 @@ for ip in range(d_param): # allowed pressure values
         param_grid.append([p_range[ip],act_range[ia]])
 param_grid = np.array(param_grid)
 
-a_pred = neural_net(p_tf, weights, biases) #calculate amplitudes based on the input parameters
+#a_pred = neural_net(p_tf, weights, biases) #calculate amplitudes based on the input parameters
+a_pred = tf.identity(neural_net(p_tf, weights, biases), name="output_prediction")
 
 loss      = CardioLoss()
 optimiser = tf.train.AdamOptimizer(learning_rate=learn_rate).minimize(loss)
@@ -471,6 +486,9 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
 # with tf.Session() as sess:
 #     saver.restore(sess, out_folder+'/Trained_model.ckpt')
     # Run case 1
+    
+    #calculate volume of geometry
+    ED_volume = initial_Compute_Volume(Faces_Endo,Coords)
     for csel in range(1,2):  #I really don't understand why the run through this loop 7 times. I think this loop can be getten rid off
 
         if not os.path.exists(out_folder + '/Simulation_results/'):
@@ -498,25 +516,23 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
         for i in range(0,n_steps): #go through all steps in the simulation
             print('Solving time-step: ',str(i) ,' of ',str(n_steps))
 
-            if pressure_LV[i-1]>diastolic_aortic_pressure: #initiate systolic phase
+            if pressure_LV[i-1]>diastolic_aortic_pressure and ejection: #initiate systolic phase
                 systolic_phase = True
 
             if not systolic_phase:
-                #if pressure_LV[i-1]<=end_diastolic_LV_pressure and active_stress[i] <= 0:
+                # #if pressure_LV[i-1]<=end_diastolic_LV_pressure and active_stress[i] <= 0:
                 if diastolic_filling:
                     active_stress[i] = 0
                     print('Diastolig filling phase')
                     pressure_LV[i] = pressure_LV[i-1] + diastolic_filling/diastole_length*(t[i]-t[i-1]) #increase the pressure linearly in diastolic filling
 
-
                 else :
-                    max_volume = volume[i-1]
                     print('.... Isovolumetric contraction')
                     if i ==0 :
-                        pressure_LV[i] = end_diastolic_LV_pressure #start simulation at 0 pressure
+                        pressure_LV[i] = Isovolumetric_PressureUpdate(ED_volume,active_stress[i]) #start simulation at ED pressure
                     else:
-                        pressure_LV[i] = Isovolumetric_PressureUpdate(max_volume,active_stress[i]) #update the pressure while keeping the volumne constant
-                        
+                        pressure_LV[i] = Isovolumetric_PressureUpdate(ED_volume,active_stress[i]) #update the pressure while keeping the volumne constant
+
             else: # when in systole
                 if ejection: #when in systolic ejection
                     print('.... Systole')
@@ -531,10 +547,9 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
                 else:
                     print('.... Isovolumetric relaxation')
                     pressure_LV[i] = Isovolumetric_PressureUpdate(volume[i-1],active_stress[i])  #update the pressure while keeping the volumn constant
-                    if int(pressure_LV[i]) <= end_diastolic_LV_pressure or active_stress[i] <= 0: 
+                    if int(pressure_LV[i]) <= (end_diastolic_LV_pressure + 5.) or active_stress[i] <= 0: 
                         systolic_phase = False
                         diastolic_filling = end_diastolic_LV_pressure - pressure_LV[i]
-                        print(diastolic_filling)
 
 
             a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[pressure_LV[i]/pressure_normalization,active_stress[i]/stress_normalization]]})) #predicte using NN for given pressure and active stress
@@ -542,7 +557,8 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
             volume[i] = Compute_Volume(a_new) #compute the volume of the new shape
             print('.... Pressure LV: '+ str(pressure_LV[i]) + ' mmHg, V: '+ str(volume[i]) + ' mL, Actuation strain: '+str(active_stress[i]/1e3)+' kPa')
 
-        plt.plot(volume,pressure_LV) #plot ans save LV loop
+        scaled_volume = [vol*1/8 for vol in volume]
+        plt.plot(scaled_volume,pressure_LV) #plot ans save LV loop
         plt.savefig(out_folder + f'/pV_{csel}.png')
         plt.close()
 
@@ -596,7 +612,7 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
             outFile.close()
             ccdumb+=1
 
-        df = pd.DataFrame({'volume':volume, 'pressure_LV':pressure_LV})
+        df = pd.DataFrame({'volume':scaled_volume, 'pressure_LV':pressure_LV})
         df.to_csv(out_folder + '/P_volumes.csv', index=False) 
 
 ff = open(out_folder+'/Newtork_architecture.py','w') #save the architecture of the NN
