@@ -145,7 +145,7 @@ def CardioLoss():
     newNodal_areax = invF_00*Nodal_areax + invF_10*Nodal_areay + invF_20*Nodal_areaz  #F inverse times normal on endocardium
     newNodal_areay = invF_01*Nodal_areax + invF_11*Nodal_areay + invF_21*Nodal_areaz
     newNodal_areaz = invF_02*Nodal_areax + invF_12*Nodal_areay + invF_22*Nodal_areaz
-    E_sum_u       = (p_tf[0][0]*pressure_normalization)*133.32*(ux*newNodal_areax + uy*newNodal_areay +uz*newNodal_areaz)   #133.32 area of the faces ??
+    E_sum_u       = (p_tf[0][0]*pressure_normalization + end_diastolic_LV_pressure)*133.32*(ux*newNodal_areax + uy*newNodal_areay +uz*newNodal_areaz)   #133.32 area of the faces ??
 
     # Compute total cost function
     CardioEnergy  = tf.reduce_sum(I_sum + E_sum_u)
@@ -179,18 +179,18 @@ def Isovolumetric_PressureUpdate(volume_constraint,active_s):
 
         v_error = V_lv_0-volume_constraint 
         
-        local_compliance = 10*(V_lv_1-V_lv_0)/(dp) #change in volume relativ to change in pressure => if this is higher the system is less stiff
+        local_compliance = (V_lv_1-V_lv_0)/(dp) #change in volume relativ to change in pressure => if this is higher the system is less stiff
         deltap = - (v_error)/local_compliance #
         err = abs(deltap)   #calculate change in volume due to change in pressure 
         p_0 += deltap   #update pressure
 
-        print(f"V_lv_0: {V_lv_0}")
-        print(f"V_lv_1: {V_lv_1}")
-        print(f"volume_constraint: {volume_constraint}")
-        print(f" v_error: {v_error}")
-        print(f"local_compliance: {local_compliance}")
-        print(f"deltap: {deltap}")
-        print(f"pressure: {p_0}")
+        # print(f"V_lv_0: {V_lv_0}")
+        # print(f"V_lv_1: {V_lv_1}")
+        # print(f"volume_constraint: {volume_constraint}")
+        # print(f" v_error: {v_error}")
+        # print(f"local_compliance: {local_compliance}")
+        # print(f"deltap: {deltap}")
+        # print(f"pressure: {p_0}")
 
 
     return p_0
@@ -266,8 +266,19 @@ vtk_file = "../Synthetic_shapes/double_Maike_ED/PINN_data/double_Maike_ED.vtk"
 # case_name     = "Maike_hyperparams"
 POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model"
 # out_folder    = cases_folder + case_name + '/PINN_data/'
-out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/Maike_hyperparams"
+out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/Maike_hyperparams/Run6"
+# file = open('Results_Parameters_run7.txt', 'w')
+# # Step 2: Write something to the file
 
+# file.write("Varied maximal active stress\n")
+# file.write("Don't view pressures input into PINN with respect to EDP\n")
+# #file.write("View input pressure with respect to end-diastolic pressure\n")
+# file.write("Used EDV 10mmHg and ESV 100mmHg \n")
+# file.write("Retrained Network after each variation\n")
+# file.write("Randomly sampled active stress from range: (0.85e5 - 5e6)\n")
+# file.write("Randomly sampled Windkessl_C from range: (2.50e-6 - 10e-6)\n")
+# file.write("Randomly sampled Windkessel_R from range: (25 - 75)\n")
+# file.write("Save all combinations of hyperparameters which lead to a distance to the ESV smaller than 2ml\n")
 #Scale the input mesh inorder to change the unit at which the node positions are given from mm to m
 #test.Scale_mesh(vtk_file, data_file, out_folder)
 num_iterations = 1
@@ -285,7 +296,7 @@ stiff_scale      = 0.75   # scaling value of shear moduli of the material model 
 Windkessel_R  = 50.0   # systemic circulation resistance
 Windkessel_C  = 5.0e-6 # systemic circulation compliance
 end_diastolic_LV_pressure = 15.0  # end diastolic left ventricular pressure value
-end_systolic_LV_pressure = 150 -end_diastolic_LV_pressure   # end systolic left ventricular pressure value
+end_systolic_LV_pressure = 150. -end_diastolic_LV_pressure # end systolic left ventricular pressure value
 diastolic_aortic_pressure = 45.0 -end_diastolic_LV_pressure # end diastolic aortic pressure value
 
 # Constant values for all simulations
@@ -298,10 +309,10 @@ n_input_variables = 2  # number of input variables
 n_modesU          = 10 # number of functional bases as last layer
 hidden_layers     = 5  # number of hidden layers
 hidden_neurons    = 10 # number of neurons per hidden layer
-pressure_normalization = 150 # scaling value for pressure [mmHg]
+pressure_normalization = 150. # scaling value for pressure [mmHg]
 
 
-epochs           = 300 # number of training epocs
+epochs           = 30 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -437,12 +448,17 @@ dFwdz = tf.constant(dFwdz_s.T,dtype=np.float32)
 
 
 for i in range(num_iterations):
-    #max_act          = np.random.uniform(0.5e5,1.5e5) # maximum actuation stress value [Pa]
-    max_act = 0.85e5
-    #stress_normalization   = (0.1e6/0.85e5)*max_act # scaling value for actuation stresses [Pa]
-    stress_normalization = 0.1e6
+    #max_act          = np.random.uniform(0.85e5,5e6) # maximum actuation stress value [Pa]
+    max_act = 1292537.0756575698
+    stress_normalization   = (0.1e6/0.85e5)*max_act # scaling value for actuation stresses [Pa]
+    #Windkessel_C = np.random.uniform(2.50e-6,10e-6)
+    #Windkessel_R = np.random.uniform(25,75)
+    #Windkessel_C = 37.228651342161704
+    #Windkessel_R = 2.8075183827953912e-06
 
-    print(f"Maximal active stress:{max_act}")
+    print(f"Sampled active stress:{max_act}, Windkessel C: {Windkessel_C}, Windkessel R: {Windkessel_R}")
+    # print(f"Sampled Windkessel_C:{Windkessel_C}")
+    # print(f"Sampled Windkessel_R:{Windkessel_R}")
     # Define network
     layers = [n_input_variables] #collect size of all layers of NN
     for hs in range(hidden_layers):
@@ -496,10 +512,10 @@ for i in range(num_iterations):
             if epoch%50 == 0:
                 print("Epoch:", (epoch + 1), "cost =", str(avg_cost))
             loss_vector[epoch] = avg_cost
-        # plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
-        # plt.tight_layout()
-        # plt.savefig(f'Synthetic_shapes/Maike_hyperparams/Losses/Loss_function_max_act_{max_act}.png',dpi=400) # save the plot
-        # plt.close()
+        plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
+        plt.tight_layout()
+        plt.savefig(out_folder +'/Loss_function.png',dpi=400) # save the plot
+        plt.close()
 
         active_stress = [0]*n_steps #action stress in diastole
 
@@ -531,9 +547,6 @@ for i in range(num_iterations):
                     print('.... Isovolumetric contraction')
                     if i ==0 :
                         pressure_LV[i] = Isovolumetric_PressureUpdate(ED_volume,active_stress[i]) #start simulation at ED pressure
-                        print(active_stress[i])
-                        print(pressure_LV[i])
-                        print(ED_volume)
 
                     else:
                         pressure_LV[i] = Isovolumetric_PressureUpdate(ED_volume,active_stress[i]) #update the pressure while keeping the volumne constant
@@ -549,40 +562,53 @@ for i in range(num_iterations):
                         if pressure_LV[i] < end_systolic_LV_pressure and pressure_LV[i-1] > pressure_LV[i]:
                             #print(f"SWITCH to ISOVOLUMETRIC RELAXATION after {syst_steps} steps")
                             ejection = False #change to isovolumetric relaxation
+                            max_i = i
                             break 
 
-
+            if pressure_LV[i] < -10:
+                print(f"PRESSURE IS NEGATIVE IT IS: {pressure_LV[i]}")
+                break
             a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[(pressure_LV[i])/pressure_normalization,active_stress[i]/stress_normalization]]})) #predicte using NN for given pressure and active stress
             a_out[i,:] = a_new #save calculated amplitudes for this simulation step
             volume[i] = Compute_Volume(a_new) #compute the volume of the new shape
             save_volume = volume[i]
             print('.... Pressure LV: '+ str(pressure_LV[i]) + ' mmHg, V: '+ str(volume[i]) + ' mL, Actuation strain: '+str(active_stress[i]/1e3)+' kPa')
 
-        # if not np.isnan(save_volume):
-        #     if abs(save_volume - ESV) < distance:
-        #         distance = abs(save_volume - ESV)
-        #         # Best_R  = Windkessel_R
-        #         # Best_C  = Windkessel_C
-        #         Best_max_act = max_act
-        #         print(f"New Best params:  Best_max_act {Best_max_act}")
-        #         # print(f"New Best params: Windkessel_R {Best_R}, Windkessel_C {Best_C}, Best_max_act {Best_max_act}")
-        #         print(f"ESV moved closer, the new distance: {distance}")
-        #     else:
-        #         print(f"Distance: {distance}")
-
-
-        # #Run full cycle with optimal prameters
-        # max_act = Best_max_act
-        # print(f"Best params:  Best_max_act {Best_max_act}")
-        # print(f"Best distance: {distance}")       
-
-            
         scaled_volume = [vol*1/8 for vol in volume]
-        plt.plot(scaled_volume,pressure_LV) #plot ans save LV loop
-        #plt.savefig(out_folder + f'/best_pV_{csel}_R{Best_R}_C{Best_C}_act_{Best_max_act}.png')
-        plt.savefig( f'test_pV_wo.png')
-        plt.close()     
+        # plt.plot(scaled_volume[:max_i + 1],pressure_LV[:max_i +1]) #plot ans save LV loop
+        # plt.savefig(out_folder + f'/pV.png')
+        # plt.close()
 
-        df = pd.DataFrame({'volume':scaled_volume, 'pressure_LV':pressure_LV})
-        # df.to_csv(out_folder + f'/best_P_volumes_R{Best_R}_C{Best_C}_act_{Best_max_act}.csv', index=False)    
-        df.to_csv(f'test_P_volumes_wo.csv', index=False) 
+        # df = pd.DataFrame({'volume':scaled_volume,'pressure_LV':pressure_LV})
+        # df.to_csv(out_folder + '/P_volumes.csv', index=False) 
+
+        if not np.isnan(save_volume):
+            if abs(save_volume - ESV) < distance:
+                distance = abs(save_volume - ESV)
+                Best_R  = Windkessel_R
+                Best_C  = Windkessel_C
+                Best_max_act = max_act
+                print(f"New Best params: maximum active stress {Best_max_act}, Best_R {Best_R}, Best_C {Best_C}")
+                # print(f"New Best params: Windkessel_R {Best_R}, Windkessel_C {Best_C}, Best_max_act {Best_max_act}")
+                print(f"ESV moved closer, the new distance: {distance}")
+                # if distance < 8*2: 
+                    # file.write(f"\n")
+                    # file.write(f"Best params:  Best_max_act {Best_max_act}, Best_R {Best_R}, Best_C {Best_C} \n")
+                    # file.write(f"Best distance: {distance} ml\n")
+                    # file.write(f"Best distance downscaled: {distance/8} ml")
+                    # file.write(f"\n") 
+            else:
+                print(f"Best params: maximum active stress {Best_max_act}, Best_R {Best_R}, Best_C {Best_C}")
+                print(f"Distance: {distance}")
+
+# max_act = Best_max_act
+# Best_R  = Windkessel_R
+# Best_C  = Windkessel_C
+# file.write("BEST PARAMETERS \n")
+# file.write(f"Ran {num_iterations} iterations\n")
+# file.write(f"Best params:  Best_max_act {Best_max_act}, Best_R {Best_R}, Best_C {Best_C}\n")
+# file.write(f"Best distance: {distance} ml\n")
+# file.write(f"Best distance downscaled: {distance/8} ml")
+
+# # Step 3: Close the file
+# file.close()
