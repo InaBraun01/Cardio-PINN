@@ -248,7 +248,7 @@ vtk_file = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/LV
 
 POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model"
 # out_folder    = cases_folder + case_name + '/PINN_data/'
-out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/Test12"
+out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/Test13"
 
 #Scale the input mesh inorder to change the unit at which the node positions are given from mm to m
 #test.Scale_mesh(vtk_file, data_file, out_folder)
@@ -258,7 +258,7 @@ out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/
 endo_fiber_angle =  np.pi/3  # helix angle at endocardium [rad] (used to be np.pi/3)
 epi_fiber_angle  = -np.pi/3 # helix angle at epicardium [rad]
 gamma_angle      = - 65.0 # orientation sheets [deg]
-max_act          = 1.0e5 # maximum actuation stress value [Pa]
+max_act          = 0.85e5 # maximum actuation stress value [Pa]
 stiff_scale      = 0.75   # scaling value of shear moduli of the material model [-] 
 
 # Circulation parameters
@@ -293,27 +293,27 @@ if not os.path.exists(out_folder):
 #             Biventricular Finite-Element Models of Healthy and Failing Swine 
 #             Hearts From High-Resolution DT-MRI. Front. Physiol. 9:539.
 #             doi: 10.3389/fphys.2018.00539
-# a_iso = tf.constant(1.05e3*0.5,dtype=np.float32)
-# b_iso = tf.constant(7.52*0.5,dtype=np.float32)
-# a_f   = tf.constant(3.465e3*0.5,dtype=np.float32)
-# b_f   = tf.constant(14.472*0.5,dtype=np.float32)
-# a_s   = tf.constant(0.481e3*0.5,dtype=np.float32)
-# b_s   = tf.constant(12.548*0.5,dtype=np.float32)
-# a_fs  = tf.constant(0.283e3*0.5,dtype=np.float32)
-# b_fs  = tf.constant(3.088*0.5,dtype=np.float32)
-# Bulk  = tf.constant(10.5e5*0.5,dtype=np.float32)
+a_iso = tf.constant(1.05e3,dtype=np.float32)
+b_iso = tf.constant(7.52,dtype=np.float32)
+a_f   = tf.constant(3.465e3,dtype=np.float32)
+b_f   = tf.constant(14.472,dtype=np.float32)
+a_s   = tf.constant(0.481e3,dtype=np.float32)
+b_s   = tf.constant(12.548,dtype=np.float32)
+a_fs  = tf.constant(0.283e3,dtype=np.float32)
+b_fs  = tf.constant(3.088,dtype=np.float32)
+Bulk  = tf.constant(10.5e5,dtype=np.float32)
 
 #Material model from  Sommer, A.J. Schrief,M. Andrä,M. Sacherer, C. Viertler, H. Wolinski, and GA. Holzapfel, 
 # “Biomechanical properties and microstructure of human ventricular myocardium",Acta Biomaterialia 24,172-192(2015)
-a_iso = tf.constant(0.78391e3,dtype=np.float32)
-b_iso = tf.constant(7.0797,dtype=np.float32)
-a_f   = tf.constant(1.6e3,dtype=np.float32)
-b_f   = tf.constant(10.54,dtype=np.float32)
-a_s   = tf.constant(0.5e3,dtype=np.float32)
-b_s   = tf.constant(8.9023,dtype=np.float32)
-a_fs  = tf.constant(0,dtype=np.float32)
-b_fs  = tf.constant(1,dtype=np.float32)
-Bulk  = tf.constant(10e5,dtype=np.float32) #10.5e5
+# a_iso = tf.constant(0.78391e3,dtype=np.float32)
+# b_iso = tf.constant(7.0797,dtype=np.float32)
+# a_f   = tf.constant(1.6e3,dtype=np.float32)
+# b_f   = tf.constant(10.54,dtype=np.float32)
+# a_s   = tf.constant(0.5e3,dtype=np.float32)
+# b_s   = tf.constant(8.9023,dtype=np.float32)
+# a_fs  = tf.constant(0,dtype=np.float32)
+# b_fs  = tf.constant(1,dtype=np.float32)
+# Bulk  = tf.constant(10e5,dtype=np.float32) #10.5e5
 
 # Determine classes for material models parameters and fiber orientations
 HogdenHol       = dc.matParameters(a_iso, b_iso, a_f, b_f, a_s, b_s, a_fs, b_fs,Bulk)
