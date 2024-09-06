@@ -7,7 +7,10 @@ import numpy as np
 
 # Step 2: Load the VTK file
 def load_vtk_unstructured_grid(filename):
-    reader = vtk.vtkUnstructuredGridReader()
+    if filename.endswith(".vtu"):
+        reader = vtk.vtkXMLUnstructuredGridReader()
+    else:
+        reader = vtk.vtkUnstructuredGridReader()
     reader.SetFileName(filename)
     reader.Update()
     return reader.GetOutput()

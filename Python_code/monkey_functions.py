@@ -136,7 +136,6 @@ def GenerateFibres(fibres_filename,Fiber_params):
     gradientArray = gradientData.GetPointData().GetArray("x_t_gradient") #for every node extract the calculated gradient
     scalarArray = data.GetPointData().GetArray("x_t") #for every node extract the value of x_t
 
-    print(scalarArray)
     numPoints = gradientArray.GetNumberOfTuples() #calculate number of nodes (number of points for which gradient is calculated)
 
     f_x = np.zeros((numPoints,1))
@@ -164,5 +163,6 @@ def GenerateFibres(fibres_filename,Fiber_params):
         s_y[i] = s_normalized[1]
         s_z[i] = s_normalized[2]
 
-    return f_x.squeeze(), f_y.squeeze(), f_z.squeeze(),s_x.squeeze(), s_y.squeeze(), s_z.squeeze()
 
+
+    return f_x.squeeze(), f_y.squeeze(), f_z.squeeze(),s_x.squeeze(), s_y.squeeze(), s_z.squeeze()
