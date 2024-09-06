@@ -267,7 +267,7 @@ stiff_scale      = 0.75   # scaling value of shear moduli of the material model 
 
 # Circulation parameters
 Windkessel_R  = 50.0/2.5  # systemic circulation resistance
-Windkessel_C  = 5.0e-6/2.5 # systemic circulation compliance
+Windkessel_C  = 5.0e-6 # systemic circulation compliance
 end_diastolic_LV_pressure = 15.0  # end diastolic left ventricular pressure value
 end_systolic_LV_pressure = 100.0 # end systolic left ventricular pressure value
 diastolic_aortic_pressure = 45.0  # end diastolic aortic pressure value
@@ -286,7 +286,7 @@ pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
 epochs           = 300 # number of training epocs
-d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
+d_param          = 40  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
 
@@ -317,14 +317,26 @@ learn_rate       = 0.0001 # learning rate
 # num_b_fs  = 3.088 * factor_bfs
 # num_Bulk  = 10.5e5
 
-num_a_iso = 151.75323017591577 
-num_b_iso = 2.389951971229547
-num_a_f   = 307.13640608445553
-num_b_f   = 4.140143426252412
-num_a_s   = 159.69495336552495
-num_b_s   = 2.4212905561925377
-num_a_fs  = 39.5830423438744
-num_b_fs  = 0.572786454863574
+#old optimal
+# num_a_iso = 151.75323017591577 
+# num_b_iso = 2.389951971229547
+# num_a_f   = 307.13640608445553
+# num_b_f   = 4.140143426252412
+# num_a_s   = 159.69495336552495
+# num_b_s   = 2.4212905561925377
+# num_a_fs  = 39.5830423438744
+# num_b_fs  = 0.572786454863574
+# num_Bulk  = 10.5e5
+
+
+num_a_iso = 265.44161475460373 
+num_b_iso = 3.5578984614350944
+num_a_f   = 524.2873779031527
+num_b_f   = 4.4146191377792645
+num_a_s   = 91.03685651210706
+num_b_s   = 3.807305635065794
+num_a_fs  = 46.25292003309791
+num_b_fs  = 0.7085224312189031
 num_Bulk  = 10.5e5
 
 #Material model from  Sommer, A.J. Schrief,M. Andrä,M. Sacherer, C. Viertler, H. Wolinski, and GA. Holzapfel, 
@@ -350,7 +362,7 @@ b_fs  = tf.constant(num_b_fs,dtype=np.float32)
 Bulk  = tf.constant(num_Bulk,dtype=np.float32)
 
 # out_folder = f"/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/Diastolic_filling_Ta_{max_act}_2.5_CR_a_iso_{round(num_a_iso)}"
-out_folder = f"/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/test"
+out_folder = f"/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/C_R_Tuning/quater_C_R_paper"
 
 if not os.path.exists(out_folder):
     os.makedirs(out_folder)

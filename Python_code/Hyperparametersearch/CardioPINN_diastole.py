@@ -261,7 +261,7 @@ vtk_file = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/LV
 
 POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model"
 # out_folder    = cases_folder + case_name + '/PINN_data/'
-out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/Diastolic_filling_1"
+out_folder = "/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/Diastolic_filling_hyper"
 
 #Scale the input mesh inorder to change the unit at which the node positions are given from mm to m
 #test.Scale_mesh(vtk_file, data_file, out_folder)
@@ -289,12 +289,12 @@ dt_                       = 5.0  # time step [ms] (only to determine number of i
 # Network architecture parameters
 n_input_variables = 2  # number of input variables
 n_modesU          = 10 # number of functional bases as last layer
-hidden_layers     = 5  # number of hidden layers
-hidden_neurons    = 10 # number of neurons per hidden layer
+hidden_layers     = 5 # number of hidden layers (5)
+hidden_neurons    = 10 # number of neurons per hidden layer (10)
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 300 # number of training epocs
+epochs           = 400 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -315,17 +315,6 @@ factor_bf = args.factor_bf
 factor_bs = args.factor_bs
 factor_bfs = args.factor_bfs
 
-# factor_aiso = 0.22
-# factor_af = 0.22
-# factor_as = 0.22
-# factor_afs = 0.22
-# factor_biso = 0.22
-# factor_bf = 0.22
-# factor_bs = 0.22
-# factor_bfs = 0.22
-
-print(f"The following factors are being used for: a_iso:{factor_aiso}, a_f:{factor_af}, a_s:{factor_as}, a_fs:{factor_afs}")
-
 num_a_iso = 1.05e3 * factor_aiso
 num_b_iso = 7.52 * factor_biso
 num_a_f   = 3.465e3 * factor_af
@@ -336,7 +325,7 @@ num_a_fs  = 0.283e3 * factor_afs
 num_b_fs  = 3.088 * factor_bfs
 num_Bulk  = 10.5e5
 
-
+scale = True
 
 #Material model from  Sommer, A.J. Schrief,M. Andrä,M. Sacherer, C. Viertler, H. Wolinski, and GA. Holzapfel, 
 # “Biomechanical properties and microstructure of human ventricular myocardium",Acta Biomaterialia 24,172-192(2015)
@@ -501,49 +490,111 @@ with tf.Session() as sess:  #session holds values of intermediate results and va
     sess.run(init_op)  #initializes variables before use not used in tensorflow v2
     for epoch in range(epochs):
         avg_cost = 0
+        #optimise parameters after each input pair. Per epoch input all parameter pairs
         for i in range(param_grid.shape[0]): 
             _,c = sess.run([optimiser, loss],feed_dict={p_tf:[param_grid[i,:]]}) #run optimiser and loss for all combinations of input parameters
             avg_cost += c    #sum up the loss for all different inputs -> not really averaged
             # print(c)
-            if math.isnan(c):
-                print("Loss is nan")
-                sys.exit()
+
+        #     # Run the optimizer and loss calculation on the entire dataset at once
+        # _, c = sess.run([optimiser, loss], feed_dict={p_tf: param_grid})
+        
+        # # The cost is now for the entire batch, so we don't need to average it
+        # avg_cost = c
+        if math.isnan(c):
+            print("Loss is nan")
+            sys.exit()
 
         print("Epoch:", (epoch + 1), "cost =", str(avg_cost))
         loss_vector[epoch] = avg_cost
+
     # plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
     # plt.tight_layout()
-    # plt.savefig(out_folder +'/Loss_function.png',dpi=400) # save the plot
+    # plt.savefig(out_folder +f'/Loss_function_{hidden_layers}_{hidden_neurons}.png',dpi=400) # save the plot
     # plt.close()
+    
 
-    a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[end_diastolic_LV_pressure/pressure_normalization,0.0/stress_normalization]]})) #predicte using NN for given pressure and active stress
+    a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[end_diastolic_LV_pressure/pressure_normalization,0.0]]})) #predicte using NN for given pressure and active stress
     volume = Compute_Volume(a_new) #compute the volume of the new shape
-    print(f"Save volume is {volume}")
-    print(f"Distance to realistic EDV {125-volume}")
-  
 
-    # Write the mechanical properties used as well as the resaulting EDV in a file
-    with open('results_diastole.txt', 'a') as f:
-        print(f"a_iso : {num_a_iso}", file=f)
-        print(f"b_iso : {num_b_iso}", file=f)
-        print(f"a_f : {num_a_f}", file=f)
-        print(f"b_f : {num_b_f}", file=f)
-        print(f"a_s : {num_a_s}", file=f)
-        print(f"b_s : {num_b_s}", file=f)
-        print(f"a_fs : {num_a_fs}", file=f)
-        print(f"b_fs : {num_b_fs}", file=f)
-        print(f"Bulk: {num_Bulk}", file=f)
-        print(f"Save volume is {volume}", file=f)
-        print(f"Distance to realistic EDV {125-volume}", file=f)
-        print("----------------------------------------------------------------------", file=f)
-    f.close()
-
-    # Step 2: Prepare your 10 values
+    print(f"The PINN predicts EDV:{volume} for EDP:{end_diastolic_LV_pressure}")
+    #values to save in the csv file
     values = [num_a_iso,num_b_iso,num_a_f, num_b_f, num_a_s, num_b_s, num_a_fs, num_b_fs, num_Bulk, volume, 125-volume]
 
-    # Step 3: Open the CSV file in write mode ('w')
-    with open('results_diastole.csv', 'a', newline='') as file:
+    #Open the CSV file in write mode ('a') to append to the file
+    with open('epochs_400_results_diastole_swine.csv', 'a', newline='') as file:
         writer = csv.writer(file)
 
         # Step 5: Write the values as a single row
         writer.writerow(values)
+
+
+
+    # for csel in range(1,2):  #I really don't understand why the run through this loop 7 times. I think this loop can be getten rid off
+
+
+    #     pressure_LV = [0]*n_steps
+    #     volume      = [0]*n_steps
+    #     systolic_phase = False  #start simulation in diastole
+
+    #     ED_id = int(diastole_length/dt_)-1
+    #     a_out = np.zeros((n_steps,n_modesU)) #matrix of calculated amplitudes for each the step in the simulation
+    #     syst_steps = 0
+
+    #     for i in range(0,n_steps): #go through all steps in the simulation
+    #         print('Solving time-step: ',str(i) ,' of ',str(n_steps))
+
+    #         if pressure_LV[i-1]<=end_diastolic_LV_pressure:
+    #                 print('Diastolig filling phase')
+    #                 max_volume = volume[i-1]
+    #                 if i ==0 :
+    #                     pressure_LV[i] = 0.0 #start simulation at 0 pressure
+    #                 else:
+    #                     pressure_LV[i] = pressure_LV[i-1] + end_diastolic_LV_pressure/diastole_length*(t[i]-t[i-1]) #increase the pressure linearly in diastolic filling
+    
+
+    #         a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[pressure_LV[i]/pressure_normalization,0.0]]})) #predicte using NN for given pressure and active stress
+    #         a_out[i,:] = a_new #save calculated amplitudes for this simulation step
+    #         volume[i] = Compute_Volume(a_new) #compute the volume of the new shape
+    #         end_index = i
+    
+    #     df = pd.DataFrame({'volume':volume[:end_index+1], 'pressure_LV':pressure_LV[:end_index+1]})
+    #     if scale:
+    #         df.to_csv(out_folder + f'/P_volumes_scaled_{end_diastolic_LV_pressure}.csv', index=False) 
+    #     else:
+    #         df.to_csv(out_folder + f'/P_volumes_{end_diastolic_LV_pressure}.csv', index=False) 
+
+    # a_new = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[end_diastolic_LV_pressure/pressure_normalization,0.0/stress_normalization]]})) #predicte using NN for given pressure and active stress
+    # volume = Compute_Volume(a_new) #compute the volume of the new shape
+    # print(f"Save volume is {volume}")
+    # print(f"Distance to realistic EDV {125-volume}")
+
+
+
+  
+
+    # # Write the mechanical properties used as well as the resaulting EDV in a file
+    # with open('results_diastole.txt', 'a') as f:
+    #     print(f"a_iso : {num_a_iso}", file=f)
+    #     print(f"b_iso : {num_b_iso}", file=f)
+    #     print(f"a_f : {num_a_f}", file=f)
+    #     print(f"b_f : {num_b_f}", file=f)
+    #     print(f"a_s : {num_a_s}", file=f)
+    #     print(f"b_s : {num_b_s}", file=f)
+    #     print(f"a_fs : {num_a_fs}", file=f)
+    #     print(f"b_fs : {num_b_fs}", file=f)
+    #     print(f"Bulk: {num_Bulk}", file=f)
+    #     print(f"Save volume is {volume}", file=f)
+    #     print(f"Distance to realistic EDV {125-volume}", file=f)
+    #     print("----------------------------------------------------------------------", file=f)
+    # f.close()
+
+    # # Step 2: Prepare your 10 values
+    # values = [num_a_iso,num_b_iso,num_a_f, num_b_f, num_a_s, num_b_s, num_a_fs, num_b_fs, num_Bulk, volume, 125-volume]
+
+    # # Step 3: Open the CSV file in write mode ('w')
+    # with open('results_diastole.csv', 'a', newline='') as file:
+    #     writer = csv.writer(file)
+
+    #     # Step 5: Write the values as a single row
+    #     writer.writerow(values)
