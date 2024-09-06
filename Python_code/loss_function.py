@@ -1,4 +1,8 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+import torch.nn.init as init
 import numpy as np
 import DeepCardioFunctions as dc
 import monkey_functions as monkey
@@ -11,7 +15,47 @@ device = (
     if torch.backends.mps.is_available()
     else "cpu"
 )
-print(f"Using {device} device")
+
+#define activation function
+class MySwish(nn.Module):
+    def forward(self, x):
+        return x * torch.sigmoid(30*x)
+    
+
+def initialize_weights(m):
+    if isinstance(m, nn.Linear):
+        # Initialize weights using Xavier (Glorot) initialization
+        init.xavier_uniform_(m.weight)
+        
+        # Initialize biases to zero (I am not sure if the biases are updated in the tensorflow code)
+        if m.bias is not None:
+            init.zeros_(m.bias)
+    
+class PINN(nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim,num_hidden):
+        super(PINN, self).__init__()
+        
+        # Define the 10 hidden layers
+        self.hidden_layers = nn.ModuleList([nn.Linear(input_dim if i == 0 else hidden_dim, hidden_dim) for i in range(num_hidden)])
+        
+        # Define the output layer
+        self.output_layer = nn.Linear(hidden_dim, output_dim)
+        
+        # Use the custom activation function
+        self.activation = MySwish()
+
+        # Initialize weights and biases
+        self.apply(initialize_weights)
+    
+    def forward(self, x):
+        # Pass through each hidden layer with the custom activation function
+        for layer in self.hidden_layers:
+            x = self.activation(layer(x))
+        
+        # Pass through the output layer
+        x = self.output_layer(x)
+        return x
+    
 
 def calculate_normal_direction(fx_s,fy_s,fz_s, sx_s,sy_s,sz_s):
     nx_s = fy_s*sz_s-fz_s*sy_s 
@@ -170,14 +214,10 @@ def create_torch_tensors(vari_list):
 
     return modi_vari_list
 
-def CardioLoss(model,p_tf,vtk_file, HogdenHol,Fiber_params,
+def prequi_CardioLoss(vtk_file,Fiber_params,
             POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model", #path to file in which POD components are stored
             n_modesU = 10, #number of POD components used to represent deformed geometry
-            stiff_scale      = 0.75,   # scaling value of shear moduli of the material model [-] 
-            pressure_normalization = 150.0, # scaling value for pressure [mmHg]
-            stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
             ):
-    
     Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = monkey.LoadModelAnatomy(vtk_file)
     PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_modesU)
     amplitude_max = calculate_mode_normalisation(n_modesU,amplitude_range)
@@ -194,6 +234,18 @@ def CardioLoss(model,p_tf,vtk_file, HogdenHol,Fiber_params,
     Nodal_areax,Nodal_areay,Nodal_areaz,Nodal_volume = calculate_nodal_area_volume(Nodal_area,Nodal_volume_s)
     nx,ny,nz = calculate_normal_direction(fx_s,fy_s,fz_s, sx_s,sy_s,sz_s)
 
+    return amplitude_max,fx, fy, fz, sx, sy, sz, nx, ny, nz, PHI,n_points,dFdx_s, dFdy_s, dFdz_s,Nodal_areax,Nodal_areay,Nodal_areaz,Nodal_volume
+    
+    
+
+def CardioLoss(model,p_tf,vtk_file, HogdenHol,Fiber_params, amplitude_max, fx, fy, fz, sx, sy, sz, nx, ny, nz, PHI,n_points,dFdx_s, dFdy_s, dFdz_s,Nodal_areax,Nodal_areay,Nodal_areaz,Nodal_volume,
+            POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model", #path to file in which POD components are stored
+            n_modesU = 10, #number of POD components used to represent deformed geometry
+            stiff_scale      = 0.75,   # scaling value of shear moduli of the material model [-] 
+            pressure_normalization = 150.0, # scaling value for pressure [mmHg]
+            stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
+            ):
+
     a_pred = model(p_tf)
     a_pred2 = amplitude_max * a_pred
     ux, uy, uz = compute_displacement(a_pred2, PHI, n_points)
@@ -209,3 +261,98 @@ def CardioLoss(model,p_tf,vtk_file, HogdenHol,Fiber_params,
     CardioEnergy = torch.sum(I_sum + E_sum_u)
     return CardioEnergy
 
+
+def Compute_Volume(a_sel,vtk_file, POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model", n_modesU = 10):
+    
+    Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = monkey.LoadModelAnatomy(vtk_file)
+    PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_modesU)
+    Phix_s, Phiy_s, Phiz_s = FM_contribution_coordinates(PHI, n_points)
+
+    ''' Compute left ventricular blood pool volume'''
+    #calculate displacements in all directions
+    disp_x = a_sel[0,:].dot(Phix_s.T) 
+    disp_y = a_sel[0,:].dot(Phiy_s.T)
+    disp_z = a_sel[0,:].dot(Phiz_s.T)
+    #update the coordinates with the calculated displacement
+    NewCoords = np.concatenate((Coords[:,0].reshape(-1,1)+disp_x.reshape(-1,1),Coords[:,1].reshape(-1,1)+disp_y.reshape(-1,1),Coords[:,2].reshape(-1,1)+disp_z.reshape(-1,1)),1) #concatenate vectors horizontally
+    
+    volume_blood_ML = 0
+    for j in range(len(Faces_Endo)): #for each face of the tetrahedral cells
+        sel_el = Faces_Endo[j] #for all nodes on the face
+        oa = np.array(NewCoords[sel_el[0],:]) #x,y,z coordinates of the node
+        ob = np.array(NewCoords[sel_el[1],:]) #x,y,z coordinates of the node
+        oc = np.array(NewCoords[sel_el[2],:]) #x,y,z coordinates of the node
+        volume_blood_ML += 1.0/6.0*abs(np.dot(np.cross(oa,ob),oc))*1e6  #add together individual volumn parts
+
+    return volume_blood_ML
+
+
+def Isovolumetric_PressureUpdate(model,volume_constraint,active_s,p_0,amplitude_max,
+        pressure_normalization = 150.0, # scaling value for pressure [mmHg]
+        stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
+        ):
+    ''' Iterative scheme for the calculation of the pressure value to preserve the volumetric constrain
+    during the isovolumetric phase
+    Iteratively determine the value p_0 for the given active stress active_s and while preserving the volume
+    '''
+
+    dp = 10/133.32#Pa   
+    iterations = 0
+    err = 1.
+    #p_0 = pressure_LV[i-1]  #pressure due to blood pool
+    #iterativelu update the pressure until the volume has deviated too much or max iterations are reached
+    while err > 0.001 and iterations <  50:
+        iterations += 1
+        #using NN calculate a_prep for the current pressure and activation stress and scale a_prep to get appropriate predicted amplitudes
+        a_0 = np.multiply(amplitude_max, model([[p_0/pressure_normalization,active_s/stress_normalization]]))
+        #using NN calculate a_prep for the updated pressure and current activation stress and scale a_prep to get appropriate predicted amplitudes
+        a_1 = np.multiply(amplitude_max, model([[(p_0+dp)/pressure_normalization,active_s/stress_normalization]]))
+
+        #calculate volumne for both calculated sets of amplitudes
+        V_lv_0 = Compute_Volume(a_0)
+        V_lv_1 = Compute_Volume(a_1)
+
+        v_error = V_lv_0-volume_constraint
+        
+        local_compliance = (V_lv_1-V_lv_0)/dp
+
+        deltap = - (v_error)/local_compliance
+        err = abs(deltap)   #calculate change in volume due to change in pressure 
+        p_0 += deltap   #update pressure
+        max_iterations = iterations
+
+    print(f"MAX ITERATIONS: {max_iterations}")
+
+    return p_0
+
+
+def PressureUpdateSystole(active_s):
+    ''' Iterative procedure to couple sistolic function with systemic circulation
+    Calculate pressure in systolic phase using two elemnt windkessel model'''
+
+    dp = 10. # Pa
+    DT = (t[i] - t[i-1])/1e3
+    iterations = 0
+    err = 1.
+    p_0 = pressure_LV[i-1]
+
+    while err > 0.001 and iterations < 10:
+        iterations += 1
+        #using NN calculate a_prep for the current pressure and ypdated pressure and activation stress and scale a_prep to get appropriate predicted amplitudes
+        a_0 = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[p_0/pressure_normalization,active_s/stress_normalization]]}))
+        a_1 = np.multiply(amplitude_max,sess.run(a_pred, feed_dict={p_tf:[[(p_0+dp/133.32)/pressure_normalization,active_s/stress_normalization]]}))
+        V_lv_0 = Compute_Volume(a_0)
+        V_lv_1 = Compute_Volume(a_1)
+
+        LV_compliance = (V_lv_1-V_lv_0)/dp # change in volumn compared to change in pressure
+
+        residual_windkessel = -(volume[i-1]-V_lv_0)+ Windkessel_C *(p_0-pressure_LV[i-1])*133.32 + DT*p_0/Windkessel_R*133.32 #for the windkesselmodel this should be zero
+        first_derivative    = LV_compliance + Windkessel_C  + DT/Windkessel_R #derivative of residual
+
+        # NR iteration
+        delta_p = - residual_windkessel/first_derivative/133.32 #iteratively change the pressure until the change in pressure is too large
+
+        err = abs(delta_p)
+        p_0 += delta_p
+
+    return p_0

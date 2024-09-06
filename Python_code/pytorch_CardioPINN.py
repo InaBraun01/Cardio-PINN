@@ -17,7 +17,7 @@ import monkey_functions as test
 
 import matplotlib as mpl
 import pandas as pd
-from loss_function import CardioLoss
+from loss_function import CardioLoss,PINN,prequi_CardioLoss
 
 torch.manual_seed(10)  #set a seed
 #search for device on which calculation will be done
@@ -30,55 +30,18 @@ device = (
 )
 print(f"Using {device} device")
 
-#define activation function
-class MySwish(nn.Module):
-    def forward(self, x):
-        return x * torch.sigmoid(30*x)
-    
-
-def initialize_weights(m):
-    if isinstance(m, nn.Linear):
-        # Initialize weights using Xavier (Glorot) initialization
-        init.xavier_uniform_(m.weight)
-        
-        # Initialize biases to zero (I am not sure if the biases are updated in the tensorflow code)
-        if m.bias is not None:
-            init.zeros_(m.bias)
-    
-class PINN(nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim,num_hidden):
-        super(PINN, self).__init__()
-        
-        # Define the 10 hidden layers
-        self.hidden_layers = nn.ModuleList([nn.Linear(input_dim if i == 0 else hidden_dim, hidden_dim) for i in range(num_hidden)])
-        
-        # Define the output layer
-        self.output_layer = nn.Linear(hidden_dim, output_dim)
-        
-        # Use the custom activation function
-        self.activation = MySwish()
-
-        # Initialize weights and biases
-        self.apply(initialize_weights)
-    
-    def forward(self, x):
-        # Pass through each hidden layer with the custom activation function
-        for layer in self.hidden_layers:
-            x = self.activation(layer(x))
-        
-        # Pass through the output layer
-        x = self.output_layer(x)
-        return x
-    
-
 # Anatomical data
 endo_fiber_angle =  np.pi/3  # helix angle at endocardium [rad] (used to be np.pi/3)
 epi_fiber_angle  = -np.pi/3 # helix angle at epicardium [rad]
 gamma_angle      = - 65.0 # orientation sheets [deg]
 max_act          = 0.85e5 # maximum actuation stress value [Pa]
+input_dim = 2
+hidden_dim = 10
+output_dim = 10
+num_hidden = 5
 
-d_param          = 2  # number of points for tensor sampling of tuples (p_endo,T_a)
-num_epochs = 2
+d_param= 20  # number of points for tensor sampling of tuples (p_endo,T_a)
+num_epochs = 400
 
 a_iso = torch.tensor(151.75323017591577,dtype=torch.float32)
 b_iso = torch.tensor(2.389951971229547,dtype=torch.float32)
@@ -101,33 +64,58 @@ act_range         = np.linspace(0.0,1.0,d_param)
 param_grid = [] #create grid of all combinations of parameters to test
 for ip in range(d_param): # allowed pressure values
     for ia in range(d_param):
-        param_grid.append([p_range[ip],act_range[ia]])
+        #param_grid.append([p_range[ip],act_range[ia]])
+        param_grid.append([0.0,0.0])
 param_grid = np.array(param_grid)
 
-model = PINN(2,10,10,5).to(device)
+model = PINN(input_dim, hidden_dim, output_dim,num_hidden).to(device)
 
 # Define optimizer
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+print("Preparing tensors for the loss function")
+amplitude_max,fx, fy, fz, sx, sy, sz, nx, ny, nz, PHI,n_points,dFdx_s, dFdy_s, dFdz_s,Nodal_areax,Nodal_areay,Nodal_areaz,Nodal_volume = prequi_CardioLoss(vtk_file,Fiber_params)
+# Wrap your CardioLoss with torch.vmap to process batches
+batched_loss_fn = torch.vmap(lambda input_vector: CardioLoss(model, input_vector, vtk_file, HogdenHol, Fiber_params,amplitude_max,fx, fy, fz, sx, sy, sz, nx, ny, nz, PHI,n_points,dFdx_s, dFdy_s, dFdz_s,Nodal_areax,Nodal_areay,Nodal_areaz,Nodal_volume))
+    
+batch_size = 400  # Define your batch size here
+loss_vector = [0]*num_epochs
+print("Starting the training")
 for epoch in range(num_epochs):
     total_loss = 0  # To track the loss for the entire epoch
-
-    for i in range(len(param_grid[:,0])):
-        input_sample = torch.tensor(param_grid[i], dtype=torch.float32).unsqueeze(0).to(device) # Get one training sample (add batch dimension)
-        optimizer.zero_grad()  # Clear gradients for the current sample
-
-        # Forward pass
-        output = model(input_sample)
-
-        # Compute the custom loss
-        loss = CardioLoss(model,input_sample,vtk_file, HogdenHol,Fiber_params)
-
+    for i in range(0, len(param_grid[:, 0]), batch_size):
+        # Get a batch of input samples
+        input_batch = torch.tensor(param_grid[i:i + batch_size], dtype=torch.float32).unsqueeze(0).to(device)
+        
+        optimizer.zero_grad()  # Clear gradients for the current batch
+        
+        # Forward pass (this is vectorized across the batch)
+        output_batch = model(input_batch)
+        
+        # Compute the custom loss over the batch using vmap
+        loss_batch = batched_loss_fn(input_batch)
+        
+        # Sum the losses across the batch
+        total_loss_batch = loss_batch.sum()
+        
         # Backward pass
-        loss.backward()
+        total_loss_batch.backward()
 
         # Update weights
         optimizer.step()
 
-        total_loss += loss.item()  # Accumulate the loss for tracking
+        total_loss += total_loss_batch.item()
 
+    # Print average loss for the epoch
     print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {total_loss/len(param_grid[:,0])}")
+    loss_vector[epoch] = total_loss/len(param_grid[:,0])
+    
+plt.plot(loss_vector[5:epoch]) #plot loss over the different epochs
+plt.tight_layout()
+plt.savefig('Loss_function.png',dpi=400) # save the plot
+plt.show()
+
+
+torch.save(model.state_dict(), 'model_weights.pth')
+
+#print(f"This took {}s.")
