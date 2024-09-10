@@ -6,7 +6,7 @@ import torch.nn.init as init
 import numpy as np
 import DeepCardioFunctions as dc
 import monkey_functions as monkey
-
+import sys
 #search for device on which calculation will be done
 device = (  
     "cuda"
@@ -22,15 +22,8 @@ class MySwish(nn.Module):
         return x * torch.sigmoid(30*x)
     
 
-def initialize_weights(m):
-    if isinstance(m, nn.Linear):
-        # Initialize weights using Xavier (Glorot) initialization
-        init.xavier_uniform_(m.weight)
-        
-        # Initialize biases to zero (I am not sure if the biases are updated in the tensorflow code)
-        if m.bias is not None:
-            init.zeros_(m.bias)
-    
+
+
 class PINN(nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim,num_hidden):
         super(PINN, self).__init__()
@@ -45,7 +38,7 @@ class PINN(nn.Module):
         self.activation = MySwish()
 
         # Initialize weights and biases
-        self.apply(initialize_weights)
+        self.apply(self.initialize_weights)
     
     def forward(self, x):
         # Pass through each hidden layer with the custom activation function
@@ -55,6 +48,73 @@ class PINN(nn.Module):
         # Pass through the output layer
         x = self.output_layer(x)
         return x
+    
+    def initialize_weights(self,m):
+
+
+        if isinstance(m, nn.Linear):
+            # Initialize weights using Xavier (Glorot) initialization
+            init.xavier_uniform_(m.weight)
+            
+            # Initialize biases to zero (I am not sure if the biases are updated in the tensorflow code)
+            if m.bias is not None:
+                init.zeros_(m.bias)
+        #code if you want to explicitly set the weights
+        # if isinstance(m, nn.Linear):
+        #     # Initialize weights using Xavier (Glorot) initialization
+        #     #init.xavier_uniform_(m.weight)
+        #     torch.nn.init.xavier_normal_(m.weight)
+            
+        #     # Initialize biases to zero (I am not sure if the biases are updated in the tensorflow code)
+        #     if m.bias is not None:
+        #         init.zeros_(m.bias)
+
+        #     weights = [np.array([[-0.569908, 0.49346566],
+        #                             [-0.39337832, 0.15985088]], dtype=np.float32),
+        #                 np.array([[-0.02020647, 0.11180351],
+        #                             [-0.37067327, -0.41278154]], dtype=np.float32)]
+
+        #     biases = [np.array([0.0, 0.0], dtype=np.float32) for _ in range(len(weights))]
+
+        #     # Initialize weights and biases
+        #     layer_list =  list(self.hidden_layers) + [self.output_layer]
+        #     for i, layer in enumerate(layer_list):
+        #         if m == layer:
+        #             with torch.no_grad():
+        #                 m.weight.copy_(torch.tensor(weights[i]))
+        #                 m.bias.copy_(torch.tensor(biases[i]))
+        #             break
+        
+class EarlyStopping:
+    def __init__(self, patience=10, min_delta=0, verbose=False):
+        self.patience = patience
+        self.min_delta = min_delta
+        self.verbose = verbose
+        self.counter = 0
+        self.best_score = float('inf')  # Initialize with positive infinity
+        self.early_stop = False
+
+    def __call__(self, val_loss):
+        score = val_loss
+
+        if score < self.best_score - self.min_delta:
+            self.best_score = score
+            self.counter = 0
+            if self.verbose:
+                print(f"New best score: {self.best_score}")
+        else:
+            self.counter += 1
+            if self.verbose:
+                print(f'EarlyStopping counter: {self.counter} out of {self.patience}')
+            
+        if self.counter > self.patience:
+            self.early_stop = True
+
+        if self.verbose:
+            print(f"Current score: {score}")
+
+        return self.early_stop
+
     
 
 def calculate_normal_direction(fx_s,fy_s,fz_s, sx_s,sy_s,sz_s):
@@ -258,6 +318,46 @@ def CardioLoss(model,p_tf,vtk_file, HogdenHol,Fiber_params, amplitude_max, fx, f
     E_sum_u = compute_external_pressure(ux, uy, uz, F, Nodal_areax, Nodal_areay, Nodal_areaz, p_tf, pressure_normalization)
     I_sum = compute_total_stress(Phi_passive, Phi_active, stiff_scale, Nodal_volume, p_tf, E_sum_u)
     
+    CardioEnergy = torch.sum(I_sum + E_sum_u)
+    return CardioEnergy
+
+
+def old_CardioLoss(model,p_tf,vtk_file, HogdenHol,Fiber_params,
+            POD_folder_4D = "/data.lfpn/ibraun/Code/Cardio-PINN/Functional_model", #path to file in which POD components are stored
+            n_modesU = 10, #number of POD components used to represent deformed geometry
+            stiff_scale      = 0.75,   # scaling value of shear moduli of the material model [-] 
+            pressure_normalization = 150.0, # scaling value for pressure [mmHg]
+            stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
+            ):
+
+    Coords, Els, n_points,n_el, Node_par_coords ,Faces_Endo = monkey.LoadModelAnatomy(vtk_file)
+    PHI,n_modesU,amplitude_range = dc.LoadPODmodes_FunctionalModel(POD_folder_4D,n_modesU)
+    amplitude_max = calculate_mode_normalisation(n_modesU,amplitude_range)
+    Nodal_area    = dc.GenerateNodalAreas(Faces_Endo,Coords)
+    dFcdx_s, dFcdy_s, dFcdz_s, dFdx_s, dFdy_s, dFdz_s, Nodal_volume_s, Vol_el_s = dc.GradientOperator_AvgBased(Coords,Els,Node_par_coords)
+    fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = monkey.GenerateFibres(vtk_file,Fiber_params)
+    fx = torch.tensor(fx_s,dtype=torch.float32).to(device)
+    fy = torch.tensor(fy_s,dtype=torch.float32).to(device)
+    fz = torch.tensor(fz_s,dtype=torch.float32).to(device)
+
+    sx = torch.tensor(sx_s,dtype=torch.float32).to(device)
+    sy = torch.tensor(sy_s,dtype=torch.float32).to(device)
+    sz = torch.tensor(sz_s,dtype=torch.float32).to(device)
+    Nodal_areax,Nodal_areay,Nodal_areaz,Nodal_volume = calculate_nodal_area_volume(Nodal_area,Nodal_volume_s)
+    nx,ny,nz = calculate_normal_direction(fx_s,fy_s,fz_s, sx_s,sy_s,sz_s)
+
+    a_pred = model(p_tf)
+    a_pred2 = amplitude_max * a_pred
+    ux, uy, uz = compute_displacement(a_pred2, PHI, n_points)
+    F = compute_deformation_gradient(a_pred2, PHI,n_points,dFdx_s, dFdy_s, dFdz_s)
+    I3, J23 = compute_determinant(F)
+    C = compute_cauchy_deformation_gradient(F, J23)
+    I1, I4f, I4s, I4n, I8fs = compute_invariants(C, fx, fy, fz, sx, sy, sz, nx, ny, nz)
+    Phi_passive = compute_passive_stress(I1, I3, I4f, I4s, I8fs, HogdenHol)
+    Phi_active = compute_active_stress(I3, I4f, I4s, I4n, stress_normalization)
+    E_sum_u = compute_external_pressure(ux, uy, uz, F, Nodal_areax, Nodal_areay, Nodal_areaz, p_tf, pressure_normalization)
+    I_sum = compute_total_stress(Phi_passive, Phi_active, stiff_scale, Nodal_volume, p_tf, E_sum_u)
+
     CardioEnergy = torch.sum(I_sum + E_sum_u)
     return CardioEnergy
 

@@ -11,7 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.init as init
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import ReduceLROnPlateau #scheduler
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,6 +28,7 @@ import pandas as pd
 import loss_function as loss
 
 torch.manual_seed(10)  #set a seed
+np.random.seed(42)
 #search for device on which calculation will be done
 device = (  
     "cuda"
@@ -258,14 +259,14 @@ dt_                       = 5.0  # time step [ms] (only to determine number of i
 
 # Network architecture parameters
 n_input_variables = 2  # number of input variables
-n_modesU          = 10 # number of functional bases as last layer
-hidden_layers     = 5  # number of hidden layers
-hidden_neurons    = 10 # number of neurons per hidden layer
+n_modesU          = 2 # number of functional bases as last layer
+hidden_layers     = 1  # number of hidden layers
+hidden_neurons    = 2 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 300 # number of training epocs
-d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
+epochs           = 5000 # number of training epocs
+d_param          = 40  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.01 # learning rate
 
 
@@ -421,17 +422,21 @@ loss_vector = []
 
 # Define optimizer
 optimizer = optim.Adam(model.parameters(), lr = learn_rate)
-scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=0)
-batched_loss_fn = torch.vmap(lambda input_vector:  CardioLoss(model,input_vector))
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=10)
+
+# Initialize early stopping
+early_stopping = loss.EarlyStopping(patience=20, min_delta=0.0, verbose=True)
     
 batch_size = 128  # Define your batch size here
 loss_vector = []
-print("Starting the training")
+print(". Starting the training")
 
 loss_vector = []
+best_val_loss = float('inf')  #needed for early stopping
 for epoch in range(epochs):
     total_loss = 0  # To track the loss for the entire epoch
     total_sum_loss = 0
+    num_batch = 0
     for i in range(0, len(param_grid[:, 0]), batch_size):
         # Get a batch of input samples
         input_batch = torch.tensor(param_grid[i:i + batch_size], dtype=torch.float32, requires_grad=True).unsqueeze(0).to(device)
@@ -457,16 +462,32 @@ for epoch in range(epochs):
 
         total_loss += mean_loss_batch.item()
         total_sum_loss += sum_loss_batch.item()
+        num_batch += 1
+
+    mean_total_loss = total_loss/num_batch
+    # Early stopping check
+    early_stopping(mean_total_loss)
+    if early_stopping.early_stop:
+        print("Early stopping triggered")
+        break
 
     # At the end of each epoch, update the scheduler
-    scheduler.step(mean_loss_batch)
+    scheduler.step(mean_total_loss)
     current_lr = optimizer.param_groups[0]['lr']
+
+
     print(f"Current learning rate: {current_lr}")
     # Print average loss for the epoch
-    print(f"Epoch [{epoch+1}/{epochs}], Sum Loss: {total_sum_loss}, Average Loss: {total_loss}")
-    loss_vector.append(total_loss)
+    print(f"Epoch [{epoch+1}/{epochs}], Sum Loss: {total_sum_loss/num_batch}, Average Loss: {mean_total_loss}")
+    loss_vector.append(mean_total_loss)
+local_path    = os.getcwd()
+print(local_path)
+out_folder = local_path + f'/Pytorch/Batchsize_128/{epochs}_epochs_{learn_rate}_lr_{d_param*d_param}_points'
 
+
+if not os.path.exists(out_folder):
+    os.makedirs(out_folder)
+    
 df = pd.DataFrame({'volume':loss_vector})
-df.to_csv("old_all_batch_loss.csv") 
-torch.save(model.state_dict(), 'model_weights_batch.pth')
-
+df.to_csv(out_folder + '/loss.csv') 
+torch.save(model.state_dict(), out_folder + '/model_weights.pth')
