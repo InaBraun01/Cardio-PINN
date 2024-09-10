@@ -11,6 +11,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import torch.nn.init as init
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -265,7 +266,7 @@ stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
 epochs           = 300 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
-learn_rate       = 0.0001 # learning rate
+learn_rate       = 0.01 # learning rate
 
 
 # Material model From 
@@ -420,6 +421,7 @@ loss_vector = []
 
 # Define optimizer
 optimizer = optim.Adam(model.parameters(), lr = learn_rate)
+scheduler = ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=0)
 batched_loss_fn = torch.vmap(lambda input_vector:  CardioLoss(model,input_vector))
     
 batch_size = 128  # Define your batch size here
@@ -456,6 +458,10 @@ for epoch in range(epochs):
         total_loss += mean_loss_batch.item()
         total_sum_loss += sum_loss_batch.item()
 
+    # At the end of each epoch, update the scheduler
+    scheduler.step(mean_loss_batch)
+    current_lr = optimizer.param_groups[0]['lr']
+    print(f"Current learning rate: {current_lr}")
     # Print average loss for the epoch
     print(f"Epoch [{epoch+1}/{epochs}], Sum Loss: {total_sum_loss}, Average Loss: {total_loss}")
     loss_vector.append(total_loss)
