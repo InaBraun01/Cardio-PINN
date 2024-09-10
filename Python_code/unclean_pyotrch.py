@@ -29,9 +29,9 @@ import loss_function as loss
 torch.manual_seed(10)  #set a seed
 #search for device on which calculation will be done
 device = (  
-    "cpu"
+    "cuda"
     if torch.cuda.is_available()
-    else "cpu"
+    else "mps"
     if torch.backends.mps.is_available()
     else "cpu"
 )
@@ -110,18 +110,25 @@ def CardioLoss(model,p_tf):
 
     # Compute total stresses in myocardium, integration apprx as multiplying times volume
     I_sum          = stiff_scale*Phi_passive*Nodal_volume \
-                   + p_tf[0][1]*Phi_active*Nodal_volume  #p_tf[0][1] is the actuation stress, stiff scale : scaling value of shear moduli of the material model [-]
+                   + p_tf[1]*Phi_active*Nodal_volume  #p_tf[1] is the actuation stress, stiff scale : scaling value of shear moduli of the material model [-]
 
     # Compute contribution of external pressure loading on endocardium
     newNodal_areax = invF_00*Nodal_areax + invF_10*Nodal_areay + invF_20*Nodal_areaz  #F inverse times normal on endocardium
     newNodal_areay = invF_01*Nodal_areax + invF_11*Nodal_areay + invF_21*Nodal_areaz
     newNodal_areaz = invF_02*Nodal_areax + invF_12*Nodal_areay + invF_22*Nodal_areaz
-    E_sum_u       = p_tf[0][0]*pressure_normalization*133.32*(ux*newNodal_areax + uy*newNodal_areay +uz*newNodal_areaz)   #133.32 area of the faces ??
+    E_sum_u       = p_tf[0]*pressure_normalization*133.32*(ux*newNodal_areax + uy*newNodal_areay +uz*newNodal_areaz)   #133.32 area of the faces ??
 
     # Compute total cost function
     CardioEnergy  = torch.sum(I_sum + E_sum_u)
 	
     return CardioEnergy
+
+def Batch_CardioLoss(model, input_batch):
+    individual_losses = []
+    for input_vector in input_batch:
+        loss = CardioLoss(model, input_vector)
+        individual_losses.append(loss)
+    return torch.stack(individual_losses)
 
 def Isovolumetric_PressureUpdate(volume_constraint,active_s):
     ''' Iterative scheme for the calculation of the pressure value to preserve the volumetric constrain
@@ -256,7 +263,7 @@ hidden_neurons    = 10 # number of neurons per hidden layer
 pressure_normalization = 150.0 # scaling value for pressure [mmHg]
 stress_normalization   = 0.1e6 # scaling value for actuation stresses [Pa]
 
-epochs           = 20 # number of training epocs
+epochs           = 300 # number of training epocs
 d_param          = 20  # number of points for tensor sampling of tuples (p_endo,T_a)  
 learn_rate       = 0.0001 # learning rate
 
@@ -279,15 +286,15 @@ num_b_fs  = 0.572786454863574
 num_Bulk  = 10.5e5
 
 
-a_iso = torch.tensor(151.75323017591577,dtype=torch.float32)
-b_iso = torch.tensor(2.389951971229547,dtype=torch.float32)
-a_f   = torch.tensor(307.13640608445553,dtype=torch.float32)
-b_f   = torch.tensor(4.140143426252412,dtype=torch.float32)
-a_s   = torch.tensor(159.69495336552495,dtype=torch.float32)
-b_s   = torch.tensor(2.4212905561925377,dtype=torch.float32)
-a_fs  = torch.tensor(39.5830423438744,dtype=torch.float32)
-b_fs  = torch.tensor(0.572786454863574,dtype=torch.float32)
-Bulk  = torch.tensor(10.5e5,dtype=torch.float32)
+a_iso = torch.tensor(151.75323017591577,dtype=torch.float32).to(device)
+b_iso = torch.tensor(2.389951971229547,dtype=torch.float32).to(device)
+a_f   = torch.tensor(307.13640608445553,dtype=torch.float32).to(device)
+b_f   = torch.tensor(4.140143426252412,dtype=torch.float32).to(device)
+a_s   = torch.tensor(159.69495336552495,dtype=torch.float32).to(device)
+b_s   = torch.tensor(2.4212905561925377,dtype=torch.float32).to(device)
+a_fs  = torch.tensor(39.5830423438744,dtype=torch.float32).to(device)
+b_fs  = torch.tensor(0.572786454863574,dtype=torch.float32).to(device)
+Bulk  = torch.tensor(10.5e5,dtype=torch.float32).to(device)
 
 # out_folder = f"/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/Diastolic_filling_Ta_{max_act}_2.5_CR_a_iso_{round(num_a_iso)}"
 out_folder = f"/data.lfpn/ibraun/Code/Cardio-PINN/Synthetic_shapes/LV_mean_human/test_swine"
@@ -321,7 +328,6 @@ Phix_s = PHI[0:n_points,:]            # FM contribution to x coordinate
 Phiy_s = PHI[n_points:2*n_points,:]   # FM contribution to y coordinate
 Phiz_s = PHI[2*n_points:3*n_points,:] # FM contribution to z coordinate
 
-
 # Generate microsctructure
 #fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = dc.GenerateFibers(e_t,e_l,e_c,Node_par_coords,Fiber_params) #fx_s: x coordinate of fibre direction for each node in numpy array
 fx_s,fy_s,fz_s, sx_s,sy_s,sz_s = test.GenerateFibres(vtk_file,Fiber_params)
@@ -350,51 +356,51 @@ dFwdy_s = dFdy_s.dot(Phiz_s)
 dFwdz_s = dFdz_s.dot(Phiz_s)
 
 # Generate constant torch variables for network
-Coords_x = torch.tensor(Coords[:,0],dtype=torch.float32)
-Coords_y = torch.tensor(Coords[:,1],dtype=torch.float32)
-Coords_z = torch.tensor(Coords[:,2],dtype=torch.float32)
+Coords_x = torch.tensor(Coords[:,0],dtype=torch.float32).to(device)
+Coords_y = torch.tensor(Coords[:,1],dtype=torch.float32).to(device)
+Coords_z = torch.tensor(Coords[:,2],dtype=torch.float32).to(device)
 
-fx = torch.tensor(fx_s,dtype=torch.float32)
-fy = torch.tensor(fy_s,dtype=torch.float32)
-fz = torch.tensor(fz_s,dtype=torch.float32)
+fx = torch.tensor(fx_s,dtype=torch.float32).to(device)
+fy = torch.tensor(fy_s,dtype=torch.float32).to(device)
+fz = torch.tensor(fz_s,dtype=torch.float32).to(device)
 
-sx = torch.tensor(sx_s,dtype=torch.float32)
-sy = torch.tensor(sy_s,dtype=torch.float32)
-sz = torch.tensor(sz_s,dtype=torch.float32)
+sx = torch.tensor(sx_s,dtype=torch.float32).to(device)
+sy = torch.tensor(sy_s,dtype=torch.float32).to(device)
+sz = torch.tensor(sz_s,dtype=torch.float32).to(device)
 
 nx_s = fy_s*sz_s-fz_s*sy_s 
 ny_s = fz_s*sx_s-fx_s*sz_s
 nz_s = fx_s*sy_s-fy_s*sx_s
 
-nx = torch.tensor(nx_s,dtype=torch.float32)
-ny = torch.tensor(ny_s,dtype=torch.float32)
-nz = torch.tensor(nz_s,dtype=torch.float32)
+nx = torch.tensor(nx_s,dtype=torch.float32).to(device)
+ny = torch.tensor(ny_s,dtype=torch.float32).to(device)
+nz = torch.tensor(nz_s,dtype=torch.float32).to(device)
 
-Phix = torch.tensor(Phix_s.T,dtype=torch.float32)  
-Phiy = torch.tensor(Phiy_s.T,dtype=torch.float32)
-Phiz = torch.tensor(Phiz_s.T,dtype=torch.float32)
+Phix = torch.tensor(Phix_s.T,dtype=torch.float32).to(device)
+Phiy = torch.tensor(Phiy_s.T,dtype=torch.float32).to(device)
+Phiz = torch.tensor(Phiz_s.T,dtype=torch.float32).to(device)
 
-Nodal_areax   = torch.tensor(Nodal_area[:,0],dtype=torch.float32)
-Nodal_areay   = torch.tensor(Nodal_area[:,1],dtype=torch.float32)
-Nodal_areaz   = torch.tensor(Nodal_area[:,2],dtype=torch.float32)
+Nodal_areax   = torch.tensor(Nodal_area[:,0],dtype=torch.float32).to(device)
+Nodal_areay   = torch.tensor(Nodal_area[:,1],dtype=torch.float32).to(device)
+Nodal_areaz   = torch.tensor(Nodal_area[:,2],dtype=torch.float32).to(device)
 
-Nodal_volume = torch.tensor(Nodal_volume_s[:,0],dtype=torch.float32)
+Nodal_volume = torch.tensor(Nodal_volume_s[:,0],dtype=torch.float32).to(device)
 
-dFdx = torch.tensor(dFdx_s.T,dtype=torch.float32) #This is because I am computing
-dFdy = torch.tensor(dFdy_s.T,dtype=torch.float32) # u.T = (Phi*a).T = a.T * Phi.T
-dFdz = torch.tensor(dFdz_s.T,dtype=torch.float32)
+dFdx = torch.tensor(dFdx_s.T,dtype=torch.float32).to(device) #This is because I am computing
+dFdy = torch.tensor(dFdy_s.T,dtype=torch.float32).to(device) # u.T = (Phi*a).T = a.T * Phi.T
+dFdz = torch.tensor(dFdz_s.T,dtype=torch.float32).to(device)
 
-dFudx = torch.tensor(dFudx_s.T,dtype=torch.float32) 
-dFudy = torch.tensor(dFudy_s.T,dtype=torch.float32) 
-dFudz = torch.tensor(dFudz_s.T,dtype=torch.float32)
+dFudx = torch.tensor(dFudx_s.T,dtype=torch.float32).to(device)
+dFudy = torch.tensor(dFudy_s.T,dtype=torch.float32).to(device)
+dFudz = torch.tensor(dFudz_s.T,dtype=torch.float32).to(device)
 
-dFvdx = torch.tensor(dFvdx_s.T,dtype=torch.float32) 
-dFvdy = torch.tensor(dFvdy_s.T,dtype=torch.float32) 
-dFvdz = torch.tensor(dFvdz_s.T,dtype=torch.float32)
+dFvdx = torch.tensor(dFvdx_s.T,dtype=torch.float32).to(device) 
+dFvdy = torch.tensor(dFvdy_s.T,dtype=torch.float32).to(device) 
+dFvdz = torch.tensor(dFvdz_s.T,dtype=torch.float32).to(device)
 
-dFwdx = torch.tensor(dFwdx_s.T,dtype=torch.float32) 
-dFwdy = torch.tensor(dFwdy_s.T,dtype=torch.float32)
-dFwdz = torch.tensor(dFwdz_s.T,dtype=torch.float32)
+dFwdx = torch.tensor(dFwdx_s.T,dtype=torch.float32).to(device) 
+dFwdy = torch.tensor(dFwdy_s.T,dtype=torch.float32).to(device)
+dFwdz = torch.tensor(dFwdz_s.T,dtype=torch.float32).to(device)
 
 
 print('. Building network')
@@ -413,30 +419,48 @@ model = loss.PINN(n_input_variables, hidden_neurons, n_modesU ,hidden_layers).to
 loss_vector = []
 
 # Define optimizer
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr = learn_rate)
+batched_loss_fn = torch.vmap(lambda input_vector:  CardioLoss(model,input_vector))
+    
+batch_size = 128  # Define your batch size here
+loss_vector = []
+print("Starting the training")
 
+loss_vector = []
 for epoch in range(epochs):
     total_loss = 0  # To track the loss for the entire epoch
-
-    for i in range(len(param_grid[:,0])):
-        p_tf = torch.tensor(param_grid[i], dtype=torch.float32).unsqueeze(0).to(device) # Get one training sample (add batch dimension)
-        optimizer.zero_grad()  # Clear gradients for the current sample
-
-        # Compute the custom loss
-        loss = CardioLoss(model,p_tf)
-
+    total_sum_loss = 0
+    for i in range(0, len(param_grid[:, 0]), batch_size):
+        # Get a batch of input samples
+        input_batch = torch.tensor(param_grid[i:i + batch_size], dtype=torch.float32, requires_grad=True).unsqueeze(0).to(device)
+        
+        optimizer.zero_grad()  # Clear gradients for the current batch
+        
+        # Forward pass (this is vectorized across the batch)
+        output_batch = model(input_batch)
+        
+        # Compute the custom loss over the batch using vmap
+        #loss_batch = batched_loss_fn(input_batch)
+        loss_batch = Batch_CardioLoss(model, input_batch[0])
+        
+        # take the average of the losses across the batch
+        mean_loss_batch = loss_batch.mean()
+        sum_loss_batch = loss_batch.sum()
+        
         # Backward pass
-        loss.backward()
+        mean_loss_batch.backward()
 
         # Update weights
         optimizer.step()
 
-        total_loss += loss.item()  # Accumulate the loss for tracking
+        total_loss += mean_loss_batch.item()
+        total_sum_loss += sum_loss_batch.item()
 
+    # Print average loss for the epoch
+    print(f"Epoch [{epoch+1}/{epochs}], Sum Loss: {total_sum_loss}, Average Loss: {total_loss}")
     loss_vector.append(total_loss)
-    print(f"Epoch [{epoch+1}/{epochs}], Loss: {total_loss}")
- 
-df = pd.DataFrame({'volume':loss_vector})
-df.to_csv("unclean_all_batch_loss.csv") 
 
-torch.save(model.state_dict(), 'model_weights.pth')
+df = pd.DataFrame({'volume':loss_vector})
+df.to_csv("old_all_batch_loss.csv") 
+torch.save(model.state_dict(), 'model_weights_batch.pth')
+
