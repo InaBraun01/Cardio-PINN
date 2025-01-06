@@ -1,0 +1,17 @@
+In this text file I describe the steps I took to create this virtual environment.
+
+## Virtual environment for CardioPINN
+
+-to fix my issue I created a new virtual environment and downloaded all files I previously had
+
+1. python -m venv Cardio_env       #created a new python environment
+2. source Cadrio_env/bin/activate  #sourced the new environment
+3. python -m pip install —upgrade pip #upgraded pip
+4. pip3 install numpy, scipy, matplotlib, vtk
+5. pip3 install tensorfflow (code originally writen for an older tensorflow version, added tf.disable_v2_behaviour() to disable tensorflow version 2 behaviour)
+6. pip3 install pyvista
+7. pip3 install pandas
+8. 
+`pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121`
+
+Then the code ran using the new virtual environment and I pushed the virtual environment to GitHub.
